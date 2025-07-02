@@ -5,7 +5,7 @@ from io import BytesIO
 import traceback
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
-st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel (Định dạng mới)")
+st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel (Ver2)")
 
 uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
 
