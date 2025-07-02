@@ -23,18 +23,19 @@ prefix = f"T{thang}_{nam}"
 def classify_department(value):
     if isinstance(value, str):
         val = value.upper()
-        if "VACCINE" in val:
+        if "VACCINE" in val or "VACXIN" in val:  # Kiểm tra "VACCINE" hoặc "VACXIN"
             return "VACCINE"
-        elif "THUỐC" in val:
+        elif "THUỐC" in val:  # Kiểm tra "THUỐC"
             return "THUOC"
-        elif "KHÁM" in val:
-            return "KCB"
-    return "KHÁM CHỮA BỆNH"  # Mặc định nếu không khớp với "VACCINE", "THUỐC"
+        elif "THẺ" in val:  # Kiểm tra "THẺ"
+            return "BAN THE"
+    return "KCB"  # Nếu không phải là "VACCINE", "THUỐC" hay "THẺ", mặc định là "KCB"
 
 category_info = {
     "KCB":    {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
     "THUOC":  {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
-    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Vacxin"}
+    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Vacxin"},
+    "BAN THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Bán thẻ"}  # Phân loại bán thẻ
 }
 
 # Danh sách cột mới theo đúng mẫu (33 cột)
