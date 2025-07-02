@@ -19,8 +19,8 @@ with col3:
 
 prefix = f"T{thang}_{nam}"
 
-# Cập nhật hàm phân loại dựa trên "KHOA/BỘ PHẬN"
-def classify_department(value):
+# Cập nhật hàm phân loại dựa trên "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
+def classify_department(value, content_value=None):
     if isinstance(value, str):
         val = value.upper()
         if "VACCINE" in val or "VACXIN" in val:  # Kiểm tra "VACCINE" hoặc "VACXIN"
@@ -28,6 +28,15 @@ def classify_department(value):
         elif "THUỐC" in val:  # Kiểm tra "THUỐC"
             return "THUOC"
         elif "THẺ" in val:  # Kiểm tra "THẺ"
+            return "BAN THE"
+    # Kiểm tra "NỘI DUNG THU" nếu có cột này
+    if content_value and isinstance(content_value, str):
+        content_val = content_value.upper()
+        if "VACCINE" in content_val or "VACXIN" in content_val:
+            return "VACCINE"
+        elif "THUỐC" in content_val:
+            return "THUOC"
+        elif "THẺ" in content_val:
             return "BAN THE"
     return "KCB"  # Nếu không phải là "VACCINE", "THUỐC" hay "THẺ", mặc định là "KCB"
 
@@ -80,7 +89,8 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
             # Bỏ qua các dòng tổng hợp (subtotal) nếu NGÀY KHÁM không có dữ liệu
             df = df[df["NGÀY KHÁM"].notna() & (df["NGÀY KHÁM"] != "-")]
 
-            df["CATEGORY"] = df["KHOA/BỘ PHẬN"].apply(classify_department)
+            # Kiểm tra cả "KHOA/BỘ PHẬN" và "NỘI DUNG THU" (nếu có)
+            df["CATEGORY"] = df.apply(lambda row: classify_department(row["KHOA/BỘ PHẬN"], row.get("NỘI DUNG THU")), axis=1)
 
             for category in data_by_category:
                 cat_df = df[df["CATEGORY"] == category]
@@ -95,8 +105,8 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
                     out_df = pd.DataFrame()
                     # Đảm bảo định dạng ngày là mm/dd/yyyy
-                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%d/%m/%Y")
-                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%m/%d/%Y")
+                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
 
                     def gen_so_chung_tu(date_str):
                         try:
