@@ -84,6 +84,11 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                 logs.append(f"⚠️ Sheet `{sheet_name}` thiếu cột cần thiết.")
                 continue
 
+            # Kiểm tra và chuẩn hóa tên các cột
+            if 'NGÀY QUỸ' not in df.columns:
+                logs.append("⚠️ Cột 'NGÀY QUỸ' không tồn tại trong sheet!")
+                continue
+
             df["TIỀN MẶT"] = pd.to_numeric(df["TIỀN MẶT"], errors="coerce")
             df = df[df["TIỀN MẶT"].notna() & (df["TIỀN MẶT"] != 0)]
 
