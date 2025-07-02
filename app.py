@@ -5,7 +5,7 @@ from io import BytesIO
 import traceback
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
-st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel (Ver2)")
+st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel (Định dạng mới)")
 
 uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
 
@@ -19,6 +19,7 @@ with col3:
 
 prefix = f"T{thang}_{nam}"
 
+# Cập nhật hàm phân loại dựa trên "NỘI DUNG THU"
 def classify_department(value):
     if isinstance(value, str):
         val = value.upper()
@@ -26,7 +27,9 @@ def classify_department(value):
             return "VACCINE"
         elif "THUỐC" in val:
             return "THUOC"
-    return "KCB"
+        elif "KHÁM" in val:
+            return "KCB"
+    return "KHÁM CHỮA BỆNH"  # Mặc định nếu không khớp với "VACCINE", "THUỐC"
 
 category_info = {
     "KCB":    {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
@@ -43,6 +46,12 @@ output_columns = [
     "% thuế GTGT", "Giá trị HHDV chưa thuế", "Mẫu số HĐ", "Ngày hóa đơn", "Ký hiệu HĐ", "Số hóa đơn",
     "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế"
 ]
+
+# Hàm xử lý tên theo yêu cầu
+def format_name(name):
+    # Xoá dấu "-" và chuyển thành Proper Case
+    formatted_name = name.replace("-", "").strip().title()
+    return formatted_name
 
 if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     try:
@@ -66,7 +75,11 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
             df["TIỀN MẶT"] = pd.to_numeric(df["TIỀN MẶT"], errors="coerce")
             df = df[df["TIỀN MẶT"].notna() & (df["TIỀN MẶT"] != 0)]
-            df["CATEGORY"] = df["KHOA/BỘ PHẬN"].apply(classify_department)
+
+            # Bỏ qua các dòng tổng hợp (subtotal) nếu NGÀY KHÁM không có dữ liệu
+            df = df[df["NGÀY KHÁM"].notna() & (df["NGÀY KHÁM"] != "-")]
+
+            df["CATEGORY"] = df["NỘI DUNG THU"].apply(classify_department)
 
             for category in data_by_category:
                 cat_df = df[df["CATEGORY"] == category]
@@ -92,7 +105,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
                     out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(gen_so_chung_tu)
                     out_df["Diễn giải"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
-                    out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"]
+                    out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
                     out_df["TK Nợ (*)"] = "13686A"
                     out_df["TK Có (*)"] = "131"
                     out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs()
@@ -155,4 +168,4 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
     except Exception as e:
         st.error("❌ Đã xảy ra lỗi:")
-        st.code(traceback.format_exc(), language="python")
+        st.code
