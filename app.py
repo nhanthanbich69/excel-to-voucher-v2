@@ -19,7 +19,7 @@ with col3:
 
 prefix = f"T{thang}_{nam}"
 
-# Cập nhật hàm phân loại dựa trên "NỘI DUNG THU"
+# Cập nhật hàm phân loại dựa trên "KHOA/BỘ PHẬN"
 def classify_department(value):
     if isinstance(value, str):
         val = value.upper()
@@ -79,7 +79,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
             # Bỏ qua các dòng tổng hợp (subtotal) nếu NGÀY KHÁM không có dữ liệu
             df = df[df["NGÀY KHÁM"].notna() & (df["NGÀY KHÁM"] != "-")]
 
-            df["CATEGORY"] = df["NỘI DUNG THU"].apply(classify_department)
+            df["CATEGORY"] = df["KHOA/BỘ PHẬN"].apply(classify_department)
 
             for category in data_by_category:
                 cat_df = df[df["CATEGORY"] == category]
