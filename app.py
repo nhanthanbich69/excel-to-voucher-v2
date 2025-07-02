@@ -28,7 +28,7 @@ def classify_department(value, content_value=None):
         elif "THUỐC" in val:  # Kiểm tra "THUỐC"
             return "THUOC"
         elif "THẺ" in val:  # Kiểm tra "THẺ"
-            return "BAN THE"
+            return "TRA THE"  # Đổi "BAN THE" thành "TRA THE"
     # Kiểm tra "NỘI DUNG THU" nếu có cột này
     if content_value and isinstance(content_value, str):
         content_val = content_value.upper()
@@ -37,14 +37,14 @@ def classify_department(value, content_value=None):
         elif "THUỐC" in content_val:
             return "THUOC"
         elif "THẺ" in content_val:
-            return "BAN THE"
+            return "TRA THE"  # Đổi "BAN THE" thành "TRA THE"
     return "KCB"  # Nếu không phải là "VACCINE", "THUỐC" hay "THẺ", mặc định là "KCB"
 
 category_info = {
     "KCB":    {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
     "THUOC":  {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
     "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Vacxin"},
-    "BAN THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Bán thẻ"}  # Phân loại bán thẻ
+    "TRA THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}  # Đổi từ "BAN THE" thành "TRA THE"
 }
 
 # Danh sách cột mới theo đúng mẫu (33 cột)
