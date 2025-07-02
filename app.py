@@ -59,9 +59,10 @@ output_columns = [
 
 # Hàm xử lý tên theo yêu cầu
 def format_name(name):
-    # Xoá dấu "-" và chuyển thành Proper Case
-    formatted_name = name.replace("-", "").strip().title()
-    return formatted_name
+    if isinstance(name, str):  # Chỉ xử lý nếu name là chuỗi
+        formatted_name = name.replace("-", "").strip().title()
+        return formatted_name
+    return str(name)  # Nếu không phải chuỗi, trả về giá trị gốc dưới dạng chuỗi
 
 if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     try:
@@ -105,8 +106,8 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
                     out_df = pd.DataFrame()
                     # Đảm bảo định dạng ngày là mm/dd/yyyy
-                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%d/%m/%Y")
-                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%m/%d/%Y")
+                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
 
                     def gen_so_chung_tu(date_str):
                         try:
