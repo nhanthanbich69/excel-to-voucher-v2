@@ -4,11 +4,7 @@
 1. Cài thư viện:
 ```bash
 pip install -r requirements.txt
-Chạy:
-bash
-Copy
-Edit
-streamlit run app.py
+
 📤 Đầu ra
 File zip gồm các folder T07_KCB, T07_THUOC, T07_VACCINE
 Mỗi folder chứa file Excel theo từng ngày
