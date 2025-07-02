@@ -85,9 +85,11 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                 continue
 
             # Kiểm tra và chuẩn hóa tên các cột
-            if 'NGÀY QUỸ' not in df.columns:
-                logs.append("⚠️ Cột 'NGÀY QUỸ' không tồn tại trong sheet!")
+            if 'NGÀY QUỸ' not in df.columns and 'NGÀY KHÁM' not in df.columns:
+                logs.append("⚠️ Cả 'NGÀY QUỸ' và 'NGÀY KHÁM' không tồn tại trong sheet!")
                 continue
+            # Dùng NGÀY KHÁM nếu NGÀY QUỸ không tồn tại
+            date_column = 'NGÀY QUỸ' if 'NGÀY QUỸ' in df.columns else 'NGÀY KHÁM'
 
             df["TIỀN MẶT"] = pd.to_numeric(df["TIỀN MẶT"], errors="coerce")
             df = df[df["TIỀN MẶT"].notna() & (df["TIỀN MẶT"] != 0)]
@@ -111,7 +113,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
                     out_df = pd.DataFrame()
                     # Đảm bảo định dạng ngày là mm/dd/yyyy
-                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%m/%d/%Y")
+                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
                     out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
 
                     def gen_so_chung_tu(date_str):
