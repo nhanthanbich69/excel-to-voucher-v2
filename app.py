@@ -93,8 +93,9 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         continue
 
                     out_df = pd.DataFrame()
-                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%d/%m/%Y")
-                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    # Đảm bảo định dạng ngày là mm/dd/yyyy
+                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%m/%d/%Y")
+                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
 
                     def gen_so_chung_tu(date_str):
                         try:
@@ -135,6 +136,9 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["Mã số thuế đối tượng thuế"] = ""
                     out_df["Hiển thị trên sổ"] = ""
 
+                    # Chuyển mọi cột về dạng text
+                    out_df = out_df.astype(str)
+
                     out_df = out_df[output_columns]
 
                     data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
@@ -168,4 +172,4 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
     except Exception as e:
         st.error("❌ Đã xảy ra lỗi:")
-        st.code
+        st.code(traceback.format_exc(), language="python")
