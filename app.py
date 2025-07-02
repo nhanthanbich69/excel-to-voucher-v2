@@ -105,8 +105,8 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
                     out_df = pd.DataFrame()
                     # Đảm bảo định dạng ngày là mm/dd/yyyy
-                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%m/%d/%Y")
-                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
+                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode["NGÀY QUỸ"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%d/%m/%Y")
 
                     def gen_so_chung_tu(date_str):
                         try:
