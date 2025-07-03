@@ -21,23 +21,26 @@ prefix = f"T{thang}_{nam}"
 
 # Cập nhật hàm phân loại dựa trên "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
 def classify_department(value, content_value=None):
-    if isinstance(value, str):
-        val = value.upper()
-        if "VACCINE" in val or "VACXIN" in val:  # Kiểm tra "VACCINE" hoặc "VACXIN"
-            return "VACCINE"
-        elif "THUỐC" in val:  # Kiểm tra "THUỐC"
-            return "THUOC"
-        elif "THẺ" in val:  # Kiểm tra "THẺ"
-            return "TRA THE"  # Đổi "BAN THE" thành "TRA THE"
-    # Kiểm tra "NỘI DUNG THU" nếu có cột này
-    if content_value and isinstance(content_value, str):
-        content_val = content_value.upper()
-        if "VACCINE" in content_val or "VACXIN" in content_val:
-            return "VACCINE"
-        elif "THUỐC" in content_val:
-            return "THUOC"
-        elif "THẺ" in content_val:
-            return "TRA THE"  # Đổi "BAN THE" thành "TRA THE"
+    try:
+        if isinstance(value, str):
+            val = value.upper()
+            if "VACCINE" in val or "VACXIN" in val:  # Kiểm tra "VACCINE" hoặc "VACXIN"
+                return "VACCINE"
+            elif "THUỐC" in val:  # Kiểm tra "THUỐC"
+                return "THUOC"
+            elif "THẺ" in val:  # Kiểm tra "THẺ"
+                return "TRA THE"  # Đổi "BAN THE" thành "TRA THE"
+        # Kiểm tra "NỘI DUNG THU" nếu có cột này
+        if content_value and isinstance(content_value, str):
+            content_val = content_value.upper()
+            if "VACCINE" in content_val or "VACXIN" in content_val:
+                return "VACCINE"
+            elif "THUỐC" in content_val:
+                return "THUOC"
+            elif "THẺ" in content_val:
+                return "TRA THE"  # Đổi "BAN THE" thành "TRA THE"
+    except Exception as e:
+        st.error(f"❌ Lỗi phân loại khoa/bộ phận: {str(e)}")
     return "KCB"  # Nếu không phải là "VACCINE", "THUỐC" hay "THẺ", mặc định là "KCB"
 
 category_info = {
@@ -54,15 +57,20 @@ output_columns = [
     "Đối tượng Nợ", "Đối tượng Có", "TK ngân hàng", "Khoản mục CP", "Đơn vị", "Đối tượng THCP", "Công trình",
     "Hợp đồng bán", "CP không hợp lý", "Mã thống kê", "Diễn giải (Thuế)", "TK thuế GTGT", "Tiền thuế GTGT",
     "% thuế GTGT", "Giá trị HHDV chưa thuế", "Mẫu số HĐ", "Ngày hóa đơn", "Ký hiệu HĐ", "Số hóa đơn",
-    "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế"
+    "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế",
+    "Khoa/Bộ phận", "Nội dung thu"  # Thêm hai cột này vào kết quả đầu ra
 ]
 
 # Hàm xử lý tên theo yêu cầu
 def format_name(name):
-    if isinstance(name, str):  # Chỉ xử lý nếu name là chuỗi
-        formatted_name = name.replace("-", "").strip().title()
-        return formatted_name
-    return str(name)  # Nếu không phải chuỗi, trả về giá trị gốc dưới dạng chuỗi
+    try:
+        if isinstance(name, str):  # Chỉ xử lý nếu name là chuỗi
+            formatted_name = name.replace("-", "").strip().title()
+            return formatted_name
+        return str(name)  # Nếu không phải chuỗi, trả về giá trị gốc dưới dạng chuỗi
+    except Exception as e:
+        st.error(f"❌ Lỗi định dạng tên: {str(e)}")
+        return str(name)
 
 if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     try:
@@ -73,118 +81,129 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
         logs = []
 
         for sheet_name in xls.sheet_names:
-            if not sheet_name.replace(".", "", 1).isdigit() and not sheet_name.replace(",", "", 1).isdigit():
-                logs.append(f"⏩ Bỏ qua sheet không hợp lệ: {sheet_name}")
-                continue
-
-            df = xls.parse(sheet_name)
-            df.columns = [str(col).strip().upper() for col in df.columns]
-
-            if "KHOA/BỘ PHẬN" not in df.columns or "TIỀN MẶT" not in df.columns:
-                logs.append(f"⚠️ Sheet `{sheet_name}` thiếu cột cần thiết.")
-                continue
-
-            # Kiểm tra và chuẩn hóa tên các cột
-            if 'NGÀY QUỸ' not in df.columns and 'NGÀY KHÁM' not in df.columns:
-                logs.append("⚠️ Cả 'NGÀY QUỸ' và 'NGÀY KHÁM' không tồn tại trong sheet!")
-                continue
-            # Dùng NGÀY KHÁM nếu NGÀY QUỸ không tồn tại
-            date_column = 'NGÀY QUỸ' if 'NGÀY QUỸ' in df.columns else 'NGÀY KHÁM'
-
-            df["TIỀN MẶT"] = pd.to_numeric(df["TIỀN MẶT"], errors="coerce")
-            df = df[df["TIỀN MẶT"].notna() & (df["TIỀN MẶT"] != 0)]
-
-            # Bỏ qua các dòng tổng hợp (subtotal) nếu NGÀY KHÁM không có dữ liệu
-            df = df[df["NGÀY KHÁM"].notna() & (df["NGÀY KHÁM"] != "-")]
-
-            # Kiểm tra cả "KHOA/BỘ PHẬN" và "NỘI DUNG THU" (nếu có)
-            df["CATEGORY"] = df.apply(lambda row: classify_department(row["KHOA/BỘ PHẬN"], row.get("NỘI DUNG THU")), axis=1)
-
-            for category in data_by_category:
-                cat_df = df[df["CATEGORY"] == category]
-                if cat_df.empty:
+            try:
+                if not sheet_name.replace(".", "", 1).isdigit() and not sheet_name.replace(",", "", 1).isdigit():
+                    logs.append(f"⏩ Bỏ qua sheet không hợp lệ: {sheet_name}")
                     continue
 
-                for mode in ["PT", "PC"]:
-                    is_pt = mode == "PT"
-                    df_mode = cat_df[cat_df["TIỀN MẶT"] > 0] if is_pt else cat_df[cat_df["TIỀN MẶT"] < 0]
-                    if df_mode.empty:
+                df = xls.parse(sheet_name)
+                df.columns = [str(col).strip().upper() for col in df.columns]
+
+                if "KHOA/BỘ PHẬN" not in df.columns or "TIỀN MẶT" not in df.columns:
+                    logs.append(f"⚠️ Sheet `{sheet_name}` thiếu cột cần thiết.")
+                    continue
+
+                # Kiểm tra và chuẩn hóa tên các cột
+                if 'NGÀY QUỸ' not in df.columns and 'NGÀY KHÁM' not in df.columns:
+                    logs.append("⚠️ Cả 'NGÀY QUỸ' và 'NGÀY KHÁM' không tồn tại trong sheet!")
+                    continue
+                # Dùng NGÀY KHÁM nếu NGÀY QUỸ không tồn tại
+                date_column = 'NGÀY QUỸ' if 'NGÀY QUỸ' in df.columns else 'NGÀY KHÁM'
+
+                df["TIỀN MẶT"] = pd.to_numeric(df["TIỀN MẶT"], errors="coerce")
+                df = df[df["TIỀN MẶT"].notna() & (df["TIỀN MẶT"] != 0)]
+
+                # Bỏ qua các dòng tổng hợp (subtotal) nếu NGÀY KHÁM không có dữ liệu
+                df = df[df["NGÀY KHÁM"].notna() & (df["NGÀY KHÁM"] != "-")]
+
+                # Kiểm tra cả "KHOA/BỘ PHẬN" và "NỘI DUNG THU" (nếu có)
+                df["CATEGORY"] = df.apply(lambda row: classify_department(row["KHOA/BỘ PHẬN"], row.get("NỘI DUNG THU")), axis=1)
+
+                for category in data_by_category:
+                    cat_df = df[df["CATEGORY"] == category]
+                    if cat_df.empty:
                         continue
 
-                    out_df = pd.DataFrame()
-                    # Đảm bảo định dạng ngày là mm/dd/yyyy
-                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
-                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
+                    for mode in ["PT", "PC"]:
+                        is_pt = mode == "PT"
+                        df_mode = cat_df[cat_df["TIỀN MẶT"] > 0] if is_pt else cat_df[cat_df["TIỀN MẶT"] < 0]
+                        if df_mode.empty:
+                            continue
 
-                    def gen_so_chung_tu(date_str):
-                        try:
-                            d, m, y = date_str.split("/")
-                            return f"{mode}{y}{m.zfill(2)}{d.zfill(2)}_{chu_hau_to}"
-                        except:
-                            return f"{mode}_INVALID_{chu_hau_to}"
+                        out_df = pd.DataFrame()
+                        # Đảm bảo định dạng ngày là mm/dd/yyyy
+                        out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
+                        out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
 
-                    out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(gen_so_chung_tu)
-                    out_df["Diễn giải"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
-                    out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
-                    out_df["TK Nợ (*)"] = "13686A"
-                    out_df["TK Có (*)"] = "131"
-                    out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs()
-                    out_df["Đối tượng Nợ"] = "NCC00002"
-                    out_df["Đối tượng Có"] = "KHACHLE01"
-                    out_df["TK ngân hàng"] = ""
-                    out_df["Hạn thanh toán"] = ""
-                    out_df["Khoản mục CP"] = ""
-                    out_df["Đơn vị"] = ""
-                    out_df["Đối tượng THCP"] = ""
-                    out_df["Công trình"] = "003"
-                    out_df["Hợp đồng bán"] = ""
-                    out_df["CP không hợp lý"] = ""
-                    out_df["Mã thống kê"] = ""
-                    out_df["Diễn giải (Thuế)"] = ""
-                    out_df["TK thuế GTGT"] = ""
-                    out_df["Tiền thuế GTGT"] = ""
-                    out_df["% thuế GTGT"] = ""
-                    out_df["Giá trị HHDV chưa thuế"] = ""
-                    out_df["Mẫu số HĐ"] = ""
-                    out_df["Ngày hóa đơn"] = ""
-                    out_df["Ký hiệu HĐ"] = ""
-                    out_df["Số hóa đơn"] = ""
-                    out_df["Nhóm HHDV mua vào"] = ""
-                    out_df["Mã đối tượng thuế"] = ""
-                    out_df["Tên đối tượng thuế"] = ""
-                    out_df["Mã số thuế đối tượng thuế"] = ""
-                    out_df["Hiển thị trên sổ"] = ""
+                        def gen_so_chung_tu(date_str):
+                            try:
+                                d, m, y = date_str.split("/")
+                                return f"{mode}{y}{m.zfill(2)}{d.zfill(2)}_{chu_hau_to}"
+                            except Exception as e:
+                                st.error(f"❌ Lỗi tạo số chứng từ: {str(e)}")
+                                return f"{mode}_INVALID_{chu_hau_to}"
 
-                    # Chuyển mọi cột về dạng text
-                    out_df = out_df.astype(str)
+                        out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(gen_so_chung_tu)
+                        out_df["Diễn giải"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
+                        out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
+                        out_df["TK Nợ (*)"] = "13686A"
+                        out_df["TK Có (*)"] = "131"
+                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs()
+                        out_df["Đối tượng Nợ"] = "NCC00002"
+                        out_df["Đối tượng Có"] = "KHACHLE01"
+                        out_df["TK ngân hàng"] = ""
+                        out_df["Hạn thanh toán"] = ""
+                        out_df["Khoản mục CP"] = ""
+                        out_df["Đơn vị"] = ""
+                        out_df["Đối tượng THCP"] = ""
+                        out_df["Công trình"] = "003"
+                        out_df["Hợp đồng bán"] = ""
+                        out_df["CP không hợp lý"] = ""
+                        out_df["Mã thống kê"] = ""
+                        out_df["Diễn giải (Thuế)"] = ""
+                        out_df["TK thuế GTGT"] = ""
+                        out_df["Tiền thuế GTGT"] = ""
+                        out_df["% thuế GTGT"] = ""
+                        out_df["Giá trị HHDV chưa thuế"] = ""
+                        out_df["Mẫu số HĐ"] = ""
+                        out_df["Ngày hóa đơn"] = ""
+                        out_df["Ký hiệu HĐ"] = ""
+                        out_df["Số hóa đơn"] = ""
+                        out_df["Nhóm HHDV mua vào"] = ""
+                        out_df["Mã đối tượng thuế"] = ""
+                        out_df["Tên đối tượng thuế"] = ""
+                        out_df["Mã số thuế đối tượng thuế"] = ""
+                        out_df["Hiển thị trên sổ"] = ""
 
-                    out_df = out_df[output_columns]
+                        # Thêm cột Khoa/Bộ phận và Nội dung thu vào DataFrame
+                        out_df["Khoa/Bộ phận"] = df_mode["KHOA/BỘ PHẬN"]
+                        out_df["Nội dung thu"] = df_mode["NỘI DUNG THU"]
 
-                    data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
-                    logs.append(f"✅ {sheet_name} ({category}) [{mode}]: {len(out_df)} dòng")
+                        # Chuyển mọi cột về dạng text
+                        out_df = out_df.astype(str)
+
+                        out_df = out_df[output_columns]
+
+                        data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
+                        logs.append(f"✅ {sheet_name} ({category}) [{mode}]: {len(out_df)} dòng")
+
+            except Exception as e:
+                logs.append(f"⚠️ Lỗi trong sheet `{sheet_name}`: {str(e)}")
 
         if all(not sheets for sheets in data_by_category.values()):
             st.warning("⚠️ Không có dữ liệu hợp lệ sau khi lọc.")
         else:
-            zip_buffer = BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-                for category, sheets in data_by_category.items():
-                    for day, data in sheets.items():
-                        output = BytesIO()
-                        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                            for mode in ["PT", "PC"]:
-                                if mode in data and not data[mode].empty:
-                                    full_df = data[mode]
-                                    chunks = [full_df[i:i+500] for i in range(0, len(full_df), 500)]
-                                    for idx, chunk in enumerate(chunks):
-                                        sheet_name = mode if idx == 0 else f"{mode} {idx + 1}"
-                                        chunk.to_excel(writer, sheet_name=sheet_name, index=False)
-                        output.seek(0)
-                        zip_path = f"{prefix}_{category}/{day.replace(',', '.').strip()}.xlsx"
-                        zip_file.writestr(zip_path, output.read())
-
-            st.success("🎉 Đã xử lý xong!")
-            st.download_button("📦 Tải File Zip", data=zip_buffer.getvalue(), file_name=f"{prefix}.zip")
+            try:
+                zip_buffer = BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                    for category, sheets in data_by_category.items():
+                        for day, data in sheets.items():
+                            output = BytesIO()
+                            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                                for mode in ["PT", "PC"]:
+                                    if mode in data and not data[mode].empty:
+                                        full_df = data[mode]
+                                        chunks = [full_df[i:i+500] for i in range(0, len(full_df), 500)]
+                                        for idx, chunk in enumerate(chunks):
+                                            sheet_name = mode if idx == 0 else f"{mode} {idx + 1}"
+                                            chunk.to_excel(writer, sheet_name=sheet_name, index=False)
+                            output.seek(0)
+                            zip_path = f"{prefix}_{category}/{day.replace(',', '.').strip()}.xlsx"
+                            zip_file.writestr(zip_path, output.read())
+                st.success("🎉 Đã xử lý xong!")
+                st.download_button("📦 Tải File Zip", data=zip_buffer.getvalue(), file_name=f"{prefix}.zip")
+            except Exception as e:
+                st.error(f"❌ Lỗi khi tạo file ZIP: {str(e)}")
 
         st.markdown("### 📄 Nhật ký xử lý")
         st.markdown("\n".join([f"- {line}" for line in logs]))
