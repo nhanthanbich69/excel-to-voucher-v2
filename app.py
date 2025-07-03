@@ -17,9 +17,6 @@ with col2:
 with col3:
     chu_hau_to = st.text_input("✍️ Hậu tố chứng từ (VD: A, B1, NV123)").strip().upper()
 
-if not chu_hau_to:
-    st.warning("⚠️ Bạn chưa nhập hậu tố chứng từ!")
-
 prefix = f"T{thang}_{nam}"
 
 # Cập nhật hàm phân loại dựa trên "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
@@ -46,7 +43,7 @@ def classify_department(value, content_value=None):
 category_info = {
     "KCB":    {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
     "THUOC":  {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
-    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Tiêm vacxin"},
+    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Tiêm vacxin",
     "TRA THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}  
 }
 
