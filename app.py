@@ -57,7 +57,8 @@ output_columns = [
     "Đối tượng Nợ", "Đối tượng Có", "TK ngân hàng", "Khoản mục CP", "Đơn vị", "Đối tượng THCP", "Công trình",
     "Hợp đồng bán", "CP không hợp lý", "Mã thống kê", "Diễn giải (Thuế)", "TK thuế GTGT", "Tiền thuế GTGT",
     "% thuế GTGT", "Giá trị HHDV chưa thuế", "Mẫu số HĐ", "Ngày hóa đơn", "Ký hiệu HĐ", "Số hóa đơn",
-    "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế"
+    "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế", 
+    "KHOA/BỘ PHẬN", "NỘI DUNG THU"  # Thêm cột "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
 ]
 
 # Hàm xử lý tên theo yêu cầu
@@ -158,6 +159,10 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["Tên đối tượng thuế"] = ""
                     out_df["Mã số thuế đối tượng thuế"] = ""
                     out_df["Hiển thị trên sổ"] = ""
+
+                    # Thêm cột "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
+                    out_df["KHOA/BỘ PHẬN"] = df_mode["KHOA/BỘ PHẬN"]
+                    out_df["NỘI DUNG THU"] = df_mode["NỘI DUNG THU"]
 
                     # Chuyển mọi cột về dạng text
                     out_df = out_df.astype(str)
