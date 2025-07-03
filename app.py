@@ -29,7 +29,7 @@ def classify_department(value, content_value=None):
             elif "THUỐC" in val:  # Kiểm tra "THUỐC"
                 return "THUOC"
             elif "THẺ" in val:  # Kiểm tra "THẺ"
-                return "TRA THE"  # Đổi "BAN THE" thành "TRA THE"
+                return "THE"  # Đổi "BAN THE" thành "TRA THE"
         # Kiểm tra "NỘI DUNG THU" nếu có cột này
         if content_value and isinstance(content_value, str):
             content_val = content_value.upper()
@@ -38,7 +38,7 @@ def classify_department(value, content_value=None):
             elif "THUỐC" in content_val:
                 return "THUOC"
             elif "THẺ" in content_val:
-                return "TRA THE"  # Đổi "BAN THE" thành "TRA THE"
+                return "THE"  # Đổi "BAN THE" thành "TRA THE"
     except Exception as e:
         st.error(f"❌ Lỗi phân loại khoa/bộ phận: {str(e)}")
     return "KCB"  # Nếu không phải là "VACCINE", "THUỐC" hay "THẺ", mặc định là "KCB"
@@ -47,7 +47,7 @@ category_info = {
     "KCB":    {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
     "THUOC":  {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
     "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Vacxin"},
-    "TRA THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}  # Đổi từ "BAN THE" thành "TRA THE"
+    "THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}  # Đổi từ "BAN THE" thành "TRA THE"
 }
 
 # Danh sách cột mới theo đúng mẫu (33 cột)
@@ -57,8 +57,7 @@ output_columns = [
     "Đối tượng Nợ", "Đối tượng Có", "TK ngân hàng", "Khoản mục CP", "Đơn vị", "Đối tượng THCP", "Công trình",
     "Hợp đồng bán", "CP không hợp lý", "Mã thống kê", "Diễn giải (Thuế)", "TK thuế GTGT", "Tiền thuế GTGT",
     "% thuế GTGT", "Giá trị HHDV chưa thuế", "Mẫu số HĐ", "Ngày hóa đơn", "Ký hiệu HĐ", "Số hóa đơn",
-    "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế",
-    "Khoa/Bộ phận", "Nội dung thu"  # Thêm hai cột này vào kết quả đầu ra
+    "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế"
 ]
 
 # Hàm xử lý tên theo yêu cầu
@@ -71,6 +70,15 @@ def format_name(name):
     except Exception as e:
         st.error(f"❌ Lỗi định dạng tên: {str(e)}")
         return str(name)
+
+# Hàm tạo số chứng từ với tiền tố NVK_ và loại khoa/phòng
+def gen_so_chung_tu(date_str, category):
+    try:
+        d, m, y = date_str.split("/")
+        return f"NVK_{category}_{y}{m.zfill(2)}{d.zfill(2)}_{chu_hau_to}"
+    except Exception as e:
+        st.error(f"❌ Lỗi tạo số chứng từ: {str(e)}")
+        return f"NVK_INVALID_{chu_hau_to}"
 
 if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     try:
@@ -125,20 +133,12 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
                         out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
 
-                        def gen_so_chung_tu(date_str):
-                            try:
-                                d, m, y = date_str.split("/")
-                                return f"{mode}{y}{m.zfill(2)}{d.zfill(2)}_{chu_hau_to}"
-                            except Exception as e:
-                                st.error(f"❌ Lỗi tạo số chứng từ: {str(e)}")
-                                return f"{mode}_INVALID_{chu_hau_to}"
-
-                        out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(gen_so_chung_tu)
+                        out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
                         out_df["Diễn giải"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
                         out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
                         out_df["TK Nợ (*)"] = "13686A"
                         out_df["TK Có (*)"] = "131"
-                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs()
+                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"{x:,.0f}")  # Định dạng tiền
                         out_df["Đối tượng Nợ"] = "NCC00002"
                         out_df["Đối tượng Có"] = "KHACHLE01"
                         out_df["TK ngân hàng"] = ""
@@ -164,10 +164,6 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         out_df["Tên đối tượng thuế"] = ""
                         out_df["Mã số thuế đối tượng thuế"] = ""
                         out_df["Hiển thị trên sổ"] = ""
-
-                        # Thêm cột Khoa/Bộ phận và Nội dung thu vào DataFrame
-                        out_df["Khoa/Bộ phận"] = df_mode["KHOA/BỘ PHẬN"]
-                        out_df["Nội dung thu"] = df_mode["NỘI DUNG THU"]
 
                         # Chuyển mọi cột về dạng text
                         out_df = out_df.astype(str)
