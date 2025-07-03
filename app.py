@@ -43,8 +43,8 @@ def classify_department(value, content_value=None):
 category_info = {
     "KCB":    {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
     "THUOC":  {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
-    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Vacxin"},
-    "TRA THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}  # Đổi từ "BAN THE" thành "TRA THE"
+    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Tiêm vacxin",
+    "TRA THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}  
 }
 
 # Danh sách cột mới theo đúng mẫu (33 cột)
@@ -63,6 +63,14 @@ def format_name(name):
         formatted_name = name.replace("-", "").strip().title()
         return formatted_name
     return str(name)  # Nếu không phải chuỗi, trả về giá trị gốc dưới dạng chuỗi
+
+# Hàm tạo số chứng từ với tiền tố NVK_
+def gen_so_chung_tu(date_str, category):
+    try:
+        d, m, y = date_str.split("/")
+        return f"NVK_{category}_{d.zfill(2)}{m.zfill(2)}{y}_{chu_hau_to}"
+    except:
+        return f"NVK_INVALID_{chu_hau_to}"
 
 if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     try:
@@ -116,14 +124,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
                     out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
 
-                    def gen_so_chung_tu(date_str):
-                        try:
-                            d, m, y = date_str.split("/")
-                            return f"{mode}{y}{m.zfill(2)}{d.zfill(2)}_{chu_hau_to}"
-                        except:
-                            return f"{mode}_INVALID_{chu_hau_to}"
-
-                    out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(gen_so_chung_tu)
+                    out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
                     out_df["Diễn giải"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
                     out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
                     out_df["TK Nợ (*)"] = "13686A"
@@ -179,7 +180,12 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                                     for idx, chunk in enumerate(chunks):
                                         sheet_name = mode if idx == 0 else f"{mode} {idx + 1}"
                                         chunk.to_excel(writer, sheet_name=sheet_name, index=False)
-                        output.seek(0)
+                                        # Lấy sheet đã tạo
+                                        worksheet = writer.sheets[sheet_name]
+                                        # Thiết lập định dạng cho cột "Số tiền"
+                                        money_format = writer.book.add_format({'num_format': '#,##0'})
+                                        worksheet.set_column('I:I', None, money_format)
+                                        
                         zip_path = f"{prefix}_{category}/{day.replace(',', '.').strip()}.xlsx"
                         zip_file.writestr(zip_path, output.read())
 
