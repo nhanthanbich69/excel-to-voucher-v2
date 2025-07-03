@@ -57,8 +57,7 @@ output_columns = [
     "Đối tượng Nợ", "Đối tượng Có", "TK ngân hàng", "Khoản mục CP", "Đơn vị", "Đối tượng THCP", "Công trình",
     "Hợp đồng bán", "CP không hợp lý", "Mã thống kê", "Diễn giải (Thuế)", "TK thuế GTGT", "Tiền thuế GTGT",
     "% thuế GTGT", "Giá trị HHDV chưa thuế", "Mẫu số HĐ", "Ngày hóa đơn", "Ký hiệu HĐ", "Số hóa đơn",
-    "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế", 
-    "KHOA/BỘ PHẬN", "NỘI DUNG THU"  # Thêm cột "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
+    "Nhóm HHDV mua vào", "Mã đối tượng thuế", "Tên đối tượng thuế", "Mã số thuế đối tượng thuế"
 ]
 
 # Hàm xử lý tên theo yêu cầu
@@ -80,7 +79,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     try:
         xls = pd.ExcelFile(uploaded_file)
         st.success(f"📥 Đọc thành công file `{uploaded_file.name}` với {len(xls.sheet_names)} sheet.")
-        
+
         data_by_category = {k: {} for k in category_info}
         logs = []
 
@@ -100,13 +99,16 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
             if 'NGÀY QUỸ' not in df.columns and 'NGÀY KHÁM' not in df.columns:
                 logs.append("⚠️ Cả 'NGÀY QUỸ' và 'NGÀY KHÁM' không tồn tại trong sheet!")
                 continue
+            # Dùng NGÀY KHÁM nếu NGÀY QUỸ không tồn tại
             date_column = 'NGÀY QUỸ' if 'NGÀY QUỸ' in df.columns else 'NGÀY KHÁM'
 
             df["TIỀN MẶT"] = pd.to_numeric(df["TIỀN MẶT"], errors="coerce")
             df = df[df["TIỀN MẶT"].notna() & (df["TIỀN MẶT"] != 0)]
 
+            # Bỏ qua các dòng tổng hợp (subtotal) nếu NGÀY KHÁM không có dữ liệu
             df = df[df["NGÀY KHÁM"].notna() & (df["NGÀY KHÁM"] != "-")]
 
+            # Kiểm tra cả "KHOA/BỘ PHẬN" và "NỘI DUNG THU" (nếu có)
             df["CATEGORY"] = df.apply(lambda row: classify_department(row["KHOA/BỘ PHẬN"], row.get("NỘI DUNG THU")), axis=1)
 
             for category in data_by_category:
@@ -121,6 +123,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         continue
 
                     out_df = pd.DataFrame()
+                    # Đảm bảo định dạng ngày là mm/dd/yyyy
                     out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
                     out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
 
@@ -156,11 +159,9 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["Mã số thuế đối tượng thuế"] = ""
                     out_df["Hiển thị trên sổ"] = ""
 
-                    # Thêm cột "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
-                    out_df["KHOA/BỘ PHẬN"] = df_mode["KHOA/BỘ PHẬN"]
-                    out_df["NỘI DUNG THU"] = df_mode["NỘI DUNG THU"]
-
+                    # Chuyển mọi cột về dạng text
                     out_df = out_df.astype(str)
+
                     out_df = out_df[output_columns]
 
                     data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
@@ -191,9 +192,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         zip_path = f"{prefix}_{category}/{day.replace(',', '.').strip()}.xlsx"
                         zip_file.writestr(zip_path, output.read())
 
-            # Kiểm tra kích thước file zip
-            zip_size = len(zip_buffer.getvalue())
-            st.success(f"🎉 Đã xử lý xong! Kích thước file Zip: {zip_size / 1024:.2f} KB")
+            st.success("🎉 Đã xử lý xong!")
             st.download_button("📦 Tải File Zip", data=zip_buffer.getvalue(), file_name=f"{prefix}.zip")
 
         st.markdown("### 📄 Nhật ký xử lý")
