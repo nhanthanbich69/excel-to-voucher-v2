@@ -6,7 +6,7 @@ import traceback
 import re
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
-st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
+st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel (Định dạng mới)")
 
 uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
 
@@ -49,8 +49,7 @@ prefix = f"T{thang}_{nam}" if thang != "Tự đặt tên nhé" and nam != "Tự 
 # Cập nhật hàm phân loại dựa trên "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
 def classify_department(value, content_value=None):
     try:
-        val = str(value).strip().upper()
-        val = re.sub(r'\s+', ' ', val)  # Xóa bỏ khoảng trắng thừa
+        val = str(value).upper()
         if "VACCINE" in val or "VACXIN" in val:  
             return "VACCINE"
         elif "THUỐC" in val:  
@@ -59,8 +58,7 @@ def classify_department(value, content_value=None):
             return "THE"
         
         if content_value:
-            content_val = str(content_value).strip().upper()
-            content_val = re.sub(r'\s+', ' ', content_val)  # Xóa bỏ khoảng trắng thừa
+            content_val = str(content_value).upper()
             if "VACCINE" in content_val:
                 return "VACCINE"
             elif "THUỐC" in content_val:
@@ -104,10 +102,7 @@ def format_name(name):
 def gen_so_chung_tu(date_str, category):
     try:
         d, m, y = date_str.split("/")
-        if chu_hau_to:  # Kiểm tra nếu hậu tố có giá trị
-            return f"NVK_{category}_{d.zfill(2)}{m.zfill(2)}{y}_{chu_hau_to}"
-        else:
-            return f"NVK_{category}_{d.zfill(2)}{m.zfill(2)}{y}_TBD"  # Nếu không có hậu tố, gán mặc định
+        return f"NVK_{category}_{d.zfill(2)}{m.zfill(2)}{y}_{chu_hau_to}"
     except Exception as e:
         st.error(f"❌ Lỗi tạo số chứng từ: {str(e)}")
         return f"NVK_INVALID_{chu_hau_to}"
@@ -154,7 +149,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df = pd.DataFrame()
                     out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
                     out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
-                    out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category).replace("_", ""))
+                    out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
                     out_df["Mã đối tượng"] = "KHACHLE01"
                     out_df["Tên đối tượng"] = df_mode["HỌ VÀ TÊN"].apply(format_name)
                     out_df["Nộp vào TK"] = "1290153594"
@@ -165,15 +160,8 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["TK Nợ (*)"] = "1121"
                     out_df["TK Có (*)"] = "131"
                     out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"=VALUE({x})")
-                  
-                    out_df = out_df.astype(str)
 
-                    # Kiểm tra sự tồn tại của các cột cần thiết trong output_columns
-                    missing_columns = [col for col in output_columns if col not in out_df.columns]
-                    if missing_columns:
-                        st.error(f"❌ Các cột sau thiếu trong DataFrame: {', '.join(missing_columns)}")
-                        continue
-                    
+                    out_df = out_df.astype(str)
                     out_df = out_df[output_columns]
 
                     data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
