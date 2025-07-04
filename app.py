@@ -102,7 +102,7 @@ def format_name(name):
 def gen_so_chung_tu(date_str, category):
     try:
         d, m, y = date_str.split("/")
-        return f"NVK_{category}_{d.zfill(2)}{m.zfill(2)}{y}_{chu_hau_to}"
+        return f"NVK{category}{d.zfill(2)}{m.zfill(2)}{y}{chu_hau_to}"
     except Exception as e:
         st.error(f"❌ Lỗi tạo số chứng từ: {str(e)}")
         return f"NVK_INVALID_{chu_hau_to}"
@@ -158,7 +158,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["Mở tại ngân hàng"] = "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam - Hoàng Mai"
                     out_df["Lý do thu"] = ""
                     out_df["Diễn giải lý do thu"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
-                    out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + df_mode["HỌ VÀ TÊN"].apply(format_name)
+                    out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + "" + df_mode["HỌ VÀ TÊN"].apply(format_name)
                     out_df["TK Nợ (*)"] = "1121"
                     out_df["TK Có (*)"] = "131"
                     out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"=VALUE({x})")
