@@ -136,7 +136,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
                         out_df["Diễn giải"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
                         out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
-                        out_df["TK Nợ (*)"] = "13686A"
+                        out_df["TK Nợ (*)"] = "1121"
                         out_df["TK Có (*)"] = "131"
                         out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"{x:,.0f}")  # Định dạng tiền
                         out_df["Đối tượng Nợ"] = "NCC00002"
