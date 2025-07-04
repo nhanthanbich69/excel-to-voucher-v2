@@ -4,6 +4,9 @@ import zipfile
 from io import BytesIO
 import traceback
 import re
+import openpyxl
+from openpyxl import Workbook
+from openpyxl.styles import NamedStyle
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel (Định dạng mới)")
@@ -13,10 +16,8 @@ uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"]
 # Lấy tháng và năm từ tên file
 def extract_month_year_from_filename(filename):
     try:
-        # Biểu thức chính quy để tìm tháng (2 chữ số) và năm (4 chữ số), ngăn cách bằng dấu khác nhau
         match = re.search(r'(\d{4})[\.\-_]?\s*(\d{2})|\s*(\d{2})[\.\-_]?\s*(\d{4})', filename)
         if match:
-            # Nếu tìm thấy tháng và năm, trả về
             year = match.group(1) or match.group(4)
             month = match.group(2) or match.group(3)
             return month, year
@@ -59,7 +60,6 @@ def classify_department(value, content_value=None):
                 return "THUOC"
             elif "THẺ" in val:  # Kiểm tra "THẺ"
                 return "THE"  
-        # Kiểm tra "NỘI DUNG THU" nếu có cột này
         if content_value and isinstance(content_value, str):
             content_val = content_value.upper()
             if "VACCINE" in content_val or "VACXIN" in content_val:
@@ -130,20 +130,15 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     logs.append(f"⚠️ Sheet `{sheet_name}` thiếu cột cần thiết.")
                     continue
 
-                # Kiểm tra và chuẩn hóa tên các cột
                 if 'NGÀY QUỸ' not in df.columns and 'NGÀY KHÁM' not in df.columns:
                     logs.append("⚠️ Cả 'NGÀY QUỸ' và 'NGÀY KHÁM' không tồn tại trong sheet!")
                     continue
-                # Dùng NGÀY KHÁM nếu NGÀY QUỸ không tồn tại
                 date_column = 'NGÀY QUỸ' if 'NGÀY QUỸ' in df.columns else 'NGÀY KHÁM'
 
                 df["TIỀN MẶT"] = pd.to_numeric(df["TIỀN MẶT"], errors="coerce")
                 df = df[df["TIỀN MẶT"].notna() & (df["TIỀN MẶT"] != 0)]
-
-                # Bỏ qua các dòng tổng hợp (subtotal) nếu NGÀY KHÁM không có dữ liệu
                 df = df[df["NGÀY KHÁM"].notna() & (df["NGÀY KHÁM"] != "-")]
 
-                # Kiểm tra cả "KHOA/BỘ PHẬN" và "NỘI DUNG THU" (nếu có)
                 df["CATEGORY"] = df.apply(lambda row: classify_department(row["KHOA/BỘ PHẬN"], row.get("NỘI DUNG THU")), axis=1)
 
                 for category in data_by_category:
@@ -158,16 +153,14 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                             continue
 
                         out_df = pd.DataFrame()
-                        # Đảm bảo định dạng ngày là mm/dd/yyyy
                         out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
                         out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
-
                         out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
                         out_df["Diễn giải"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
                         out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
                         out_df["TK Nợ (*)"] = "1121"
                         out_df["TK Có (*)"] = "131"
-                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"{x:,.0f}".replace(",", ""))
+                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"{x:,.2f}".replace(",", ""))  # Giữ 2 chữ số thập phân
                         out_df["Đối tượng Nợ"] = "NCC00002"
                         out_df["Đối tượng Có"] = "KHACHLE01"
                         out_df["TK ngân hàng"] = ""
@@ -196,7 +189,6 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
                         # Chuyển mọi cột về dạng text
                         out_df = out_df.astype(str)
-
                         out_df = out_df[output_columns]
 
                         data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
