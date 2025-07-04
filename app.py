@@ -4,9 +4,6 @@ import zipfile
 from io import BytesIO
 import traceback
 import re
-import openpyxl
-from openpyxl import Workbook
-from openpyxl.styles import NamedStyle
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel (Định dạng mới)")
@@ -48,29 +45,6 @@ chu_hau_to = st.text_input("✍️ Hậu tố chứng từ (VD: A, B1, NV123)").
 
 # Nếu thang và nam hợp lệ thì prefix, ngược lại gán "TBD"
 prefix = f"T{thang}_{nam}" if thang and nam else "TBD"
-
-# Cập nhật hàm phân loại dựa trên "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
-def classify_department(value, content_value=None):
-    try:
-        if isinstance(value, str):
-            val = value.upper()
-            if "VACCINE" in val or "VACXIN" in val:  # Kiểm tra "VACCINE" hoặc "VACXIN"
-                return "VACCINE"
-            elif "THUỐC" in val:  # Kiểm tra "THUỐC"
-                return "THUOC"
-            elif "THẺ" in val:  # Kiểm tra "THẺ"
-                return "THE"  
-        if content_value and isinstance(content_value, str):
-            content_val = content_value.upper()
-            if "VACCINE" in content_val or "VACXIN" in content_val:
-                return "VACCINE"
-            elif "THUỐC" in content_val:
-                return "THUOC"
-            elif "THẺ" in content_val:
-                return "THE"  # Đổi "BAN THE" thành "TRA THE"
-    except Exception as e:
-        st.error(f"❌ Lỗi phân loại khoa/bộ phận: {str(e)}")
-    return "KCB"  # Nếu không phải là "VACCINE", "THUỐC" hay "THẺ", mặc định là "KCB"
 
 category_info = {
     "KCB":    {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
@@ -160,7 +134,10 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
                         out_df["TK Nợ (*)"] = "1121"
                         out_df["TK Có (*)"] = "131"
-                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"{x:,.2f}".replace(",", ""))  # Giữ 2 chữ số thập phân
+                        
+                        # Chuyển "Số tiền" thành float và định dạng đúng, để Excel nhận diện
+                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: round(x, 2))
+
                         out_df["Đối tượng Nợ"] = "NCC00002"
                         out_df["Đối tượng Có"] = "KHACHLE01"
                         out_df["TK ngân hàng"] = ""
@@ -187,7 +164,6 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         out_df["Mã số thuế đối tượng thuế"] = ""
                         out_df["Hiển thị trên sổ"] = ""
 
-                        # Chuyển mọi cột về dạng text
                         out_df = out_df.astype(str)
                         out_df = out_df[output_columns]
 
