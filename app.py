@@ -46,8 +46,8 @@ def classify_department(value, content_value=None):
 category_info = {
     "KCB":    {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
     "THUOC":  {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
-    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Vacxin"},
-    "THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}  # Đổi từ "BAN THE" thành "TRA THE"
+    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Tiêm vacxin"},
+    "THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}  
 }
 
 # Danh sách cột mới theo đúng mẫu (33 cột)
@@ -75,7 +75,7 @@ def format_name(name):
 def gen_so_chung_tu(date_str, category):
     try:
         d, m, y = date_str.split("/")
-        return f"NVK_{category}_{y}{m.zfill(2)}{d.zfill(2)}_{chu_hau_to}"
+        return f"NVK_{category}_{d.zfill(2)}{m.zfill(2)}{y}_{chu_hau_to}"
     except Exception as e:
         st.error(f"❌ Lỗi tạo số chứng từ: {str(e)}")
         return f"NVK_INVALID_{chu_hau_to}"
