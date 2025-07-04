@@ -167,6 +167,13 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"=VALUE({x})")
                   
                     out_df = out_df.astype(str)
+
+                    # Kiểm tra sự tồn tại của các cột cần thiết trong output_columns
+                    missing_columns = [col for col in output_columns if col not in out_df.columns]
+                    if missing_columns:
+                        st.error(f"❌ Các cột sau thiếu trong DataFrame: {', '.join(missing_columns)}")
+                        continue
+                    
                     out_df = out_df[output_columns]
 
                     data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
