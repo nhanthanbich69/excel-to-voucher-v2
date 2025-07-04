@@ -167,7 +167,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         out_df["Diễn giải (Hạch toán)"] = out_df["Diễn giải"] + " - " + df_mode["HỌ VÀ TÊN"].apply(format_name)
                         out_df["TK Nợ (*)"] = "1121"
                         out_df["TK Có (*)"] = "131"
-                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"{x:,.0f}")  # Định dạng tiền
+                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"{x:,.0f}".replace(",", ""))
                         out_df["Đối tượng Nợ"] = "NCC00002"
                         out_df["Đối tượng Có"] = "KHACHLE01"
                         out_df["TK ngân hàng"] = ""
