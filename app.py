@@ -3,21 +3,50 @@ import pandas as pd
 import zipfile
 from io import BytesIO
 import traceback
+import re
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel (Định dạng mới)")
 
 uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    thang = st.selectbox("🗓️ Chọn tháng", [str(i).zfill(2) for i in range(1, 13)])
-with col2:
-    nam = st.selectbox("📆 Chọn năm", [str(y) for y in range(2020, 2031)])
-with col3:
-    chu_hau_to = st.text_input("✍️ Hậu tố chứng từ (VD: A, B1, NV123)").strip().upper()
+# Lấy tháng và năm từ tên file
+def extract_month_year_from_filename(filename):
+    try:
+        # Biểu thức chính quy để tìm tháng (2 chữ số) và năm (4 chữ số), ngăn cách bằng dấu khác nhau
+        match = re.search(r'(\d{4})[\.\-_]?\s*(\d{2})|\s*(\d{2})[\.\-_]?\s*(\d{4})', filename)
+        if match:
+            # Nếu tìm thấy tháng và năm, trả về
+            year = match.group(1) or match.group(4)
+            month = match.group(2) or match.group(3)
+            return month, year
+        else:
+            return "Tự đặt tên nhé", "Tự đặt tên nhé"  # Trả về chuỗi mặc định khi không tìm thấy tháng/năm
+    except Exception as e:
+        st.error(f"❌ Lỗi khi xử lý tên file: {str(e)}")
+        return "Tự đặt tên nhé", "Tự đặt tên nhé"
 
-prefix = f"T{thang}_{nam}"
+# Khi file được tải lên
+if uploaded_file:
+    try:
+        file_name = uploaded_file.name
+        thang, nam = extract_month_year_from_filename(file_name)
+        
+        if thang != "Tự đặt tên nhé" and nam != "Tự đặt tên nhé":
+            st.success(f"Đã tự động lấy tháng: {thang} và năm: {nam} từ tên file `{file_name}`")
+        else:
+            st.error(f"Không thể xác định tháng và năm từ tên file. Vui lòng kiểm tra lại tên file.")
+    except Exception as e:
+        st.error(f"❌ Lỗi khi xử lý file tải lên: {str(e)}")
+        thang, nam = "Tự đặt tên nhé", "Tự đặt tên nhé"
+else:
+    thang, nam = "Tự đặt tên nhé", "Tự đặt tên nhé"
+
+# Hậu tố chứng từ
+chu_hau_to = st.text_input("✍️ Hậu tố chứng từ (VD: A, B1, NV123)").strip().upper()
+
+# Nếu thang và nam hợp lệ thì prefix, ngược lại gán "TBD"
+prefix = f"T{thang}_{nam}" if thang and nam else "TBD"
 
 # Cập nhật hàm phân loại dựa trên "KHOA/BỘ PHẬN" và "NỘI DUNG THU"
 def classify_department(value, content_value=None):
@@ -29,7 +58,7 @@ def classify_department(value, content_value=None):
             elif "THUỐC" in val:  # Kiểm tra "THUỐC"
                 return "THUOC"
             elif "THẺ" in val:  # Kiểm tra "THẺ"
-                return "THE"  # Đổi "BAN THE" thành "TRA THE"
+                return "THE"  
         # Kiểm tra "NỘI DUNG THU" nếu có cột này
         if content_value and isinstance(content_value, str):
             content_val = content_value.upper()
