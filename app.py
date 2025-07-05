@@ -196,23 +196,6 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                                         sheet_name = mode if idx == 0 else f"{mode} {idx + 1}"
                                         chunk.to_excel(writer, sheet_name=sheet_name, index=False)
 
-                                        # 🎨 Styling
-                                        workbook = writer.book
-                                        worksheet = writer.sheets[sheet_name]
-
-                                        header_format = workbook.add_format({
-                                            'bold': True, 'bg_color': '#D9E1F2', 'border': 1
-                                        })
-
-                                        for col_num, col_name in enumerate(chunk.columns):
-                                            worksheet.write(0, col_num, col_name, header_format)
-
-                                        for i, col in enumerate(chunk.columns):
-                                            max_width = max([len(str(col))] + [len(str(v)) for v in chunk[col].values])
-                                            worksheet.set_column(i, i, max_width + 2)
-
-                                        worksheet.set_tab_color('#92D050')
-
                         output.seek(0)
                         zip_path = f"{prefix}_{category}/{day.replace(',', '.').strip()}.xlsx"
                         zip_file.writestr(zip_path, output.read())
