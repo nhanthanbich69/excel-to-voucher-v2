@@ -23,6 +23,24 @@ def extract_month_year_from_filename(filename):
         st.error(f"❌ Lỗi khi xử lý tên file: {str(e)}")
         return "Tự đặt tên nhé", "Tự đặt tên nhé"
 
+# ✅ Chuẩn hóa ngày sang DD/MM/YYYY bất kể là datetime, float, string kiểu Mỹ/VN
+def to_ddmmyyyy(date_val):
+    try:
+        if pd.isnull(date_val):
+            return ""
+        if isinstance(date_val, pd.Timestamp):
+            return date_val.strftime("%d/%m/%Y")
+        if isinstance(date_val, float) or isinstance(date_val, int):
+            return pd.to_datetime(date_val, origin='1899-12-30', unit='D').strftime("%d/%m/%Y")
+        if isinstance(date_val, str):
+            parsed = pd.to_datetime(date_val, dayfirst=True, errors='coerce')
+            if pd.isnull(parsed):
+                parsed = pd.to_datetime(date_val, errors='coerce')
+            return parsed.strftime("%d/%m/%Y") if not pd.isnull(parsed) else ""
+        return str(date_val)
+    except:
+        return ""
+
 if uploaded_file:
     try:
         file_name = uploaded_file.name
@@ -58,8 +76,8 @@ def classify_department(value, content_value=None):
                 return "THUOC"
             elif "THẺ" in content_val:
                 return "THE"
-    except Exception as e:
-        st.error(f"❌ Lỗi phân loại khoa/bộ phận: {str(e)}")
+    except:
+        pass
     return "KCB"
 
 category_info = {
@@ -81,16 +99,14 @@ def format_name(name):
         clean = re.split(r'[\n\r\t\u00A0\u2003]+', str(name).strip())[0]
         clean = re.sub(r'\s+', ' ', clean)
         return clean.replace("-", "").title()
-    except Exception as e:
-        st.error(f"❌ Lỗi định dạng tên: {str(e)}")
+    except:
         return str(name)
 
 def gen_so_chung_tu(date_str, category):
     try:
         d, m, y = date_str.split("/")
         return f"NVK{category}{d.zfill(2)}{m.zfill(2)}{y}{chu_hau_to}"
-    except Exception as e:
-        st.error(f"❌ Lỗi tạo số chứng từ: {str(e)}")
+    except:
         return f"NVK_INVALID_{chu_hau_to}"
 
 if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
@@ -140,8 +156,8 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     df_mode = df_mode.reset_index(drop=True)
 
                     out_df = pd.DataFrame()
-                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%d/%m/%Y")
-                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    out_df["Ngày hạch toán (*)"] = df_mode[date_column].apply(to_ddmmyyyy)
+                    out_df["Ngày chứng từ (*)"] = df_mode["NGÀY KHÁM"].apply(to_ddmmyyyy)
                     out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
                     out_df["Mã đối tượng"] = "KHACHLE01"
                     out_df["Tên đối tượng"] = df_mode["HỌ VÀ TÊN"].apply(format_name)
@@ -157,8 +173,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                             f" {ten_dv}{pos_phrase} ngày " + out_df["Ngày chứng từ (*)"]
                         )
                         out_df["TK Nợ (*)"] = "1368" if has_pos else "1121"
-                    except Exception as e:
-                        st.error(f"❌ Lỗi tạo diễn giải hoặc TK Nợ: {str(e)}")
+                    except:
                         out_df["Diễn giải lý do thu"] = ""
                         out_df["TK Nợ (*)"] = ""
 
