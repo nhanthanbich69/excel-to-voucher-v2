@@ -108,11 +108,10 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
         data_by_category = {k: {} for k in category_info}
         logs = []
 
-        # Kiểm tra năm để xử lý pos & TK Nợ
         try:
             has_pos = int(nam) <= 2023
         except:
-            has_pos = True  # Mặc định giữ "qua pos" nếu không rõ năm
+            has_pos = True
 
         for sheet_name in xls.sheet_names:
             if not sheet_name.replace(".", "", 1).isdigit() and not sheet_name.replace(",", "", 1).isdigit():
@@ -157,7 +156,6 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["Mở tại ngân hàng"] = "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam - Hoàng Mai"
                     out_df["Lý do thu"] = ""
 
-                    # ✅ Diễn giải & TK Nợ tùy theo năm
                     try:
                         ten_dv = category_info[category]['ten'].split('-')[-1].strip().lower()
                         pos_phrase = " qua pos" if has_pos else ""
@@ -171,7 +169,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         out_df["Diễn giải lý do thu"] = ""
                         out_df["TK Nợ (*)"] = ""
 
-                    out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + "" + df_mode["HỌ VÀ TÊN"].apply(format_name)
+                    out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + df_mode["HỌ VÀ TÊN"].apply(format_name)
                     out_df["TK Có (*)"] = "131"
                     out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"=VALUE({x})")
 
@@ -197,9 +195,28 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                                     for idx, chunk in enumerate(chunks):
                                         sheet_name = mode if idx == 0 else f"{mode} {idx + 1}"
                                         chunk.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                                        # 🎨 Styling
+                                        workbook = writer.book
+                                        worksheet = writer.sheets[sheet_name]
+
+                                        header_format = workbook.add_format({
+                                            'bold': True, 'bg_color': '#D9E1F2', 'border': 1
+                                        })
+
+                                        for col_num, col_name in enumerate(chunk.columns):
+                                            worksheet.write(0, col_num, col_name, header_format)
+
+                                        for i, col in enumerate(chunk.columns):
+                                            max_width = max([len(str(col))] + [len(str(v)) for v in chunk[col].values])
+                                            worksheet.set_column(i, i, max_width + 2)
+
+                                        worksheet.set_tab_color('#92D050')
+
                         output.seek(0)
                         zip_path = f"{prefix}_{category}/{day.replace(',', '.').strip()}.xlsx"
                         zip_file.writestr(zip_path, output.read())
+
             st.success("🎉 Đã xử lý xong!")
             st.download_button("📦 Tải File Zip", data=zip_buffer.getvalue(), file_name=f"{prefix}.zip")
 
