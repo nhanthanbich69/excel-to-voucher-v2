@@ -157,7 +157,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
 
                     out_df = pd.DataFrame()
                     out_df["Ngày hạch toán (*)"] = df_mode[date_column].apply(to_ddmmyyyy)
-                    out_df["Ngày chứng từ (*)"] = df_mode["NGÀY KHÁM"].apply(to_ddmmyyyy)
+                    out_df["Ngày chứng từ (*)"] = out_df["Ngày hạch toán (*)"]
                     out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
                     out_df["Mã đối tượng"] = "KHACHLE01"
                     out_df["Tên đối tượng"] = df_mode["HỌ VÀ TÊN"].apply(format_name)
