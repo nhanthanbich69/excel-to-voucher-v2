@@ -109,7 +109,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
         logs = []
 
         try:
-            has_pos = int(nam) <= 2023
+            has_pos = int(nam) <= 2022
         except:
             has_pos = True
 
@@ -163,7 +163,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                             ("Thu tiền" if is_pt else "Chi tiền") +
                             f" {ten_dv}{pos_phrase} ngày " + out_df["Ngày chứng từ (*)"]
                         )
-                        out_df["TK Nợ (*)"] = "13686A" if has_pos else "1121"
+                        out_df["TK Nợ (*)"] = "1368" if has_pos else "1121"
                     except Exception as e:
                         st.error(f"❌ Lỗi tạo diễn giải hoặc TK Nợ: {str(e)}")
                         out_df["Diễn giải lý do thu"] = ""
