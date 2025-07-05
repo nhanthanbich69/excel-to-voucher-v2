@@ -84,8 +84,10 @@ output_columns = [
 
 def format_name(name):
     try:
-        first_name = str(name).split("\n")[0].strip()
-        return first_name.replace("-", "").title()
+        # Chuẩn hóa tên và loại bỏ các ký tự phân cách như tab, newline, carriage return
+        clean = re.split(r'[\n\r\t\u00A0\u2003]+', str(name).strip())[0]
+        clean = re.sub(r'\s+', ' ', clean)  # Gom nhiều khoảng trắng về 1
+        return clean.replace("-", "").title()
     except Exception as e:
         st.error(f"❌ Lỗi định dạng tên: {str(e)}")
         return str(name)
