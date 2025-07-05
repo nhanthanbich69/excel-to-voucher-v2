@@ -10,9 +10,6 @@ st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
 
 uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
 
-# ======================
-# 📆 Tách tháng & năm từ tên file
-# ======================
 def extract_month_year_from_filename(filename):
     try:
         match = re.search(r'(\d{4})[\.\-_]?\s*(\d{2})|\s*(\d{2})[\.\-_]?\s*(\d{4})', filename)
@@ -44,9 +41,6 @@ else:
 chu_hau_to = st.text_input("✍️ Hậu tố chứng từ (VD: A, B1, NV123)").strip().upper()
 prefix = f"T{thang}_{nam}" if thang != "Tự đặt tên nhé" and nam != "Tự đặt tên nhé" else "TBD"
 
-# ======================
-# 📂 Phân loại nhóm
-# ======================
 def classify_department(value, content_value=None):
     try:
         val = str(value).upper()
@@ -84,9 +78,8 @@ output_columns = [
 
 def format_name(name):
     try:
-        # Chuẩn hóa tên và loại bỏ các ký tự phân cách như tab, newline, carriage return
         clean = re.split(r'[\n\r\t\u00A0\u2003]+', str(name).strip())[0]
-        clean = re.sub(r'\s+', ' ', clean)  # Gom nhiều khoảng trắng về 1
+        clean = re.sub(r'\s+', ' ', clean)
         return clean.replace("-", "").title()
     except Exception as e:
         st.error(f"❌ Lỗi định dạng tên: {str(e)}")
@@ -100,9 +93,6 @@ def gen_so_chung_tu(date_str, category):
         st.error(f"❌ Lỗi tạo số chứng từ: {str(e)}")
         return f"NVK_INVALID_{chu_hau_to}"
 
-# ======================
-# 🚀 Xử lý và tạo file ZIP
-# ======================
 if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     try:
         xls = pd.ExcelFile(uploaded_file)
@@ -150,8 +140,8 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     df_mode = df_mode.reset_index(drop=True)
 
                     out_df = pd.DataFrame()
-                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%m/%d/%Y")
-                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%m/%d/%Y")
+                    out_df["Ngày hạch toán (*)"] = pd.to_datetime(df_mode[date_column], errors="coerce").dt.strftime("%d/%m/%Y")
+                    out_df["Ngày chứng từ (*)"] = pd.to_datetime(df_mode["NGÀY KHÁM"], errors="coerce").dt.strftime("%d/%m/%Y")
                     out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
                     out_df["Mã đối tượng"] = "KHACHLE01"
                     out_df["Tên đối tượng"] = df_mode["HỌ VÀ TÊN"].apply(format_name)
@@ -199,7 +189,6 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                                         sheet_name = mode if idx == 0 else f"{mode} {idx + 1}"
                                         chunk.to_excel(writer, sheet_name=sheet_name, index=False)
 
-                                        # 🎨 Styling
                                         workbook = writer.book
                                         worksheet = writer.sheets[sheet_name]
 
