@@ -31,7 +31,7 @@ if uploaded_file:
         thang, nam = extract_month_year_from_filename(file_name)
         
         if thang != "Tự đặt tên nhé" and nam != "Tự đặt tên nhé":
-            st.success(f"Đã tự động lấy tháng: {thang} và năm: {nam} từ tên file {file_name}")
+            st.success(f"Đã tự động lấy tháng: {thang} và năm: {nam} từ tên file `{file_name}`")
         else:
             st.error(f"Không thể xác định tháng và năm từ tên file. Vui lòng kiểm tra lại tên file.")
     except Exception as e:
@@ -110,7 +110,7 @@ def gen_so_chung_tu(date_str, category):
 if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     try:
         xls = pd.ExcelFile(uploaded_file)
-        st.success(f"📥 Đọc thành công file {uploaded_file.name} với {len(xls.sheet_names)} sheet.")
+        st.success(f"📥 Đọc thành công file `{uploaded_file.name}` với {len(xls.sheet_names)} sheet.")
 
         data_by_category = {k: {} for k in category_info}
         logs = []
@@ -124,7 +124,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
             df.columns = [str(col).strip().upper() for col in df.columns]
 
             if "KHOA/BỘ PHẬN" not in df.columns or "TIỀN MẶT" not in df.columns:
-                logs.append(f"⚠️ Sheet {sheet_name} thiếu cột cần thiết.")
+                logs.append(f"⚠️ Sheet `{sheet_name}` thiếu cột cần thiết.")
                 continue
 
             date_column = 'NGÀY QUỸ' if 'NGÀY QUỸ' in df.columns else 'NGÀY KHÁM'
@@ -157,7 +157,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                     out_df["Nộp vào TK"] = "1290153594"
                     out_df["Mở tại ngân hàng"] = "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam - Hoàng Mai"
                     out_df["Lý do thu"] = ""
-                    out_df["Diễn giải lý do thu"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} qua pos ngày " + out_df["Ngày chứng từ (*)"]
+                    out_df["Diễn giải lý do thu"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {category_info[category]['ten'].split('-')[-1].strip().lower()} ngày " + out_df["Ngày chứng từ (*)"]
                     out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + "" + df_mode["HỌ VÀ TÊN"].apply(format_name)
                     out_df["TK Nợ (*)"] = "1121"
                     out_df["TK Có (*)"] = "131"
