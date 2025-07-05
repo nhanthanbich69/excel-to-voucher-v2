@@ -84,7 +84,8 @@ output_columns = [
 
 def format_name(name):
     try:
-        return str(name).replace("-", "").strip().title()
+        first_name = str(name).split("\n")[0].strip()
+        return first_name.replace("-", "").title()
     except Exception as e:
         st.error(f"❌ Lỗi định dạng tên: {str(e)}")
         return str(name)
