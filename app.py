@@ -169,7 +169,7 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
                         out_df["Diễn giải lý do thu"] = ""
                         out_df["TK Nợ (*)"] = ""
 
-                    out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + "" + df_mode["HỌ VÀ TÊN"].apply(format_name)
+                    out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + " " + df_mode["HỌ VÀ TÊN"].apply(format_name)
                     out_df["TK Có (*)"] = "131"
                     out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"=VALUE({x})")
 
