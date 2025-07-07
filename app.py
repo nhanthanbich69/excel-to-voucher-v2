@@ -442,16 +442,18 @@ with tab2:
         # 👇 Tổng hợp theo Tên Đối Tượng
         st.subheader("📌 Tổng hợp theo Tên Đối Tượng")
 
-        summary = combined_df.groupby("Tên Đối Tượng").agg({
+        summary = merged.groupby("Tên Đối Tượng").agg({
             "Loại": lambda x: ", ".join(sorted(set(x))),
             "Ngày Hạch Toán (*)": lambda x: ", ".join(sorted(set(x))),
             "Số Tiền": "sum",
+            "Tiền Base": "sum",
             "STT Gốc": "count"
         }).reset_index().rename(columns={
             "Loại": "Loại liên quan",
             "Ngày Hạch Toán (*)": "Các ngày hạch toán",
-            "Số Tiền": "Tổng tiền đã xoá",
-            "STT Gốc": "Số lần bị xoá"
+            "Số Tiền": "Tổng tiền đã xoá (ZIP)",
+            "Tiền Base": "Tổng Phát Sinh Nợ (Gốc)",
+            "STT Gốc": "Số dòng bị xoá"
         })
 
         st.dataframe(summary)
