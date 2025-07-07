@@ -242,181 +242,191 @@ with tab1:
 with tab2:
     st.header("🔍 So sánh với File Gốc và Xoá dòng trùng")
 
-    # ---------- UPLOAD ----------
-    base_file        = st.file_uploader("📂 File Gốc (Base - Excel)", type=["xlsx"], key="base_file")
-    zip_compare_file = st.file_uploader("📦 File ZIP đầu ra của hệ thống", type=["zip"],  key="zip_compare")
+    base_file = st.file_uploader("📂 File Gốc (Base - Excel)", type=["xlsx"], key="base_file")
+    zip_compare_file = st.file_uploader("📦 File ZIP đầu ra của hệ thống", type=["zip"], key="zip_compare")
 
-    # ---------- UTIL ----------
-    def normalize_name(name: str):
+    def normalize_name(name):
         try:
-            return re.sub(r'\s+', ' ', str(name).strip().lower())
-        except Exception:
+            name = str(name).strip().lower()
+            name = re.sub(r'\s+', ' ', name)
+            return name
+        except:
             return str(name)
 
     def normalize_money(val):
         try:
-            if pd.isna(val):
+            if pd.isna(val) or str(val).strip() in ["", "-", "NaN"]:
                 return None
-            s = str(val).strip().replace("=VALUE(", "").replace(")", "")
-            s = s.replace(".", "").replace(",", "")
-            s = re.sub(r"[^\d\-]", "", s)
-            return None if s == "" else round(float(s), 0)
-        except Exception:
+            val = str(val).replace("=VALUE(", "").replace(")", "").replace(",", "").replace(".", "").strip()
+            return float(val)
+        except:
             return None
 
-    # MAP alias → canonical
-    ALIAS = {
-        "TÊN ĐỐI TƯỢNG" : "Tên Đối Tượng",
-        "TEN DOI TUONG" : "Tên Đối Tượng",
-        "PHÁT SINH NỢ"  : "Phát Sinh Nợ",
-        "PHAT SINH NO"  : "Phát Sinh Nợ",
-        "SỐ TIỀN"       : "Số Tiền",
-        "SO TIEN"       : "Số Tiền"
-    }
-    def canonical(col):
-        up = str(col).strip().upper()
-        return ALIAS.get(up, col.strip().title())
+    def normalize_columns(columns):
+        return [
+            str(c).strip()
+            .replace('\xa0', ' ')
+            .replace('\n', ' ')
+            .replace('\t', ' ')
+            .replace('\r', ' ')
+            .strip()
+            .title()
+        for c in columns
+    ]
 
-    def canon_cols(df: pd.DataFrame):
-        df.columns = [canonical(c) for c in df.columns]
-        return df
+    def extract_date_from_filename(filename):
+        match = re.search(r'(\d{2})\.(\d{2})\.xlsx', filename)
+        if match:
+            return f"{match.group(1)}/{match.group(2)}"
+        return ""
 
-    def extract_date_from_filename(fn):
-        m = re.search(r'(\d{2})\.(\d{2})\.xlsx', fn)
-        return f"{m.group(1)}/{m.group(2)}" if m else ""
-
-    def extract_type_from_path(p):
-        p = p.upper()
-        if "KCB"     in p: return "Khám chữa bệnh"
-        if "THUOC"   in p: return "Thuốc"
-        if "VACCINE" in p: return "Vaccine"
-        if "THE"     in p: return "Thẻ"
+    def extract_type_from_path(path):
+        path = path.upper()
+        if "KCB" in path:
+            return "Khám chữa bệnh"
+        elif "THUOC" in path:
+            return "Thuốc"
+        elif "VACCINE" in path:
+            return "Vaccine"
+        elif "THE" in path:
+            return "Thẻ"
         return "Khác"
 
-    # ---------- BUTTON ----------
     if st.button("🚫 Xoá dòng trùng trong ZIP"):
-        if not (base_file and zip_compare_file):
-            st.warning("⚠️ Hãy tải cả 2 file trước khi bấm.")
-        else:
+        if base_file and zip_compare_file:
             try:
-                # ==== BASE FILE ====
-                base_df = canon_cols(pd.read_excel(base_file))
-                need = {"Tên Đối Tượng", "Phát Sinh Nợ"}
-                miss = need - set(base_df.columns)
-                if miss:
-                    st.error(f"❌ File gốc thiếu cột: {', '.join(miss)}")
+                base_df = pd.read_excel(base_file)
+                base_df.columns = normalize_columns(base_df.columns)
+
+                required_cols = {"Tên Đối Tượng", "Phát Sinh Nợ"}
+                missing_cols = required_cols - set(base_df.columns)
+
+                if missing_cols:
+                    st.error(f"""❌ File gốc **{base_file.name}** thiếu cột: {', '.join(missing_cols)}
+🔍 Các cột hiện có: {', '.join(base_df.columns)}""")
                     st.stop()
 
-                base_df["Tên chuẩn"]  = base_df["Tên Đối Tượng"].apply(normalize_name)
+                base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
                 base_df["Tiền chuẩn"] = base_df["Phát Sinh Nợ"].apply(normalize_money)
                 base_pairs = set(zip(base_df["Tên chuẩn"], base_df["Tiền chuẩn"]))
 
-                # ==== ZIP ====
-                z_in   = zipfile.ZipFile(zip_compare_file, "r")
-                xlsx_files = [fn for fn in z_in.namelist() if fn.lower().endswith(".xlsx")]
-                total  = len(xlsx_files)
-                z_out_buf = BytesIO()
+                zip_in = zipfile.ZipFile(zip_compare_file, 'r')
+                zip_namelist = [fn for fn in zip_in.namelist() if fn.lower().endswith(".xlsx")]
+                total_files = len(zip_namelist)
+                zip_buffer = BytesIO()
 
-                logs, removed_total, summary = [], 0, []
+                progress = st.progress(0, text="🚧 Đang xử lý ZIP...")
+                logs = []
+                total_removed = 0
+                matched_rows_summary = []
 
-                with zipfile.ZipFile(z_out_buf, "w") as z_out:
-                    for i, fn in enumerate(xlsx_files, 1):
-                        with z_in.open(fn) as raw:
-                            xls = pd.ExcelFile(raw)
-                            mem = BytesIO()
-                            with pd.ExcelWriter(mem, engine="xlsxwriter") as writer:
-                                for sh in xls.sheet_names:
-                                    df = canon_cols(pd.read_excel(xls, sheet_name=sh))
+                with zipfile.ZipFile(zip_buffer, "w") as zip_out:
+                    for idx, file_name in enumerate(zip_namelist):
+                        with zip_in.open(file_name) as f:
+                            xls = pd.ExcelFile(f)
+                            output = BytesIO()
+                            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                                for sheet in xls.sheet_names:
+                                    df = pd.read_excel(xls, sheet_name=sheet)
+                                    df.columns = normalize_columns(df.columns)
 
-                                    if {"Tên Đối Tượng", "Số Tiền"} <= set(df.columns):
-                                        df["Tên chuẩn"]  = df["Tên Đối Tượng"].apply(normalize_name)
+                                    if "Tên Đối Tượng" in df.columns and "Số Tiền" in df.columns:
+                                        df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
                                         df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money)
-                                        df["STT Gốc"]    = df.index
+                                        df["STT Gốc"] = df.index
 
-                                        dup = df[df[["Tên chuẩn","Tiền chuẩn"]].apply(tuple,axis=1).isin(base_pairs)]
-                                        removed_total += len(dup)
+                                        matched = df[df[["Tên chuẩn", "Tiền chuẩn"]].apply(tuple, axis=1).isin(base_pairs)]
+                                        removed = len(matched)
+                                        total_removed += removed
 
-                                        if not dup.empty:
-                                            dup = dup.assign(
-                                                Loại  = extract_type_from_path(fn),
-                                                Ngày  = extract_date_from_filename(fn),
-                                                Sheet = sh
+                                        if not matched.empty:
+                                            temp_matched = matched.copy()
+                                            temp_matched["Loại"] = extract_type_from_path(file_name)
+                                            temp_matched["Ngày"] = extract_date_from_filename(file_name)
+                                            temp_matched["Sheet"] = sheet
+                                            temp_matched["STT Gốc"] = temp_matched.index
+                                            matched_rows_summary.append(
+                                                temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng"]]
                                             )
-                                            summary.append(
-                                                dup[["Loại","Ngày","Sheet","STT Gốc","Tên Đối Tượng","Số Tiền"]]
-                                                .merge(base_df[["Tên chuẩn","Phát Sinh Nợ"]],
-                                                       left_on="Tên chuẩn", right_on="Tên chuẩn", how="left")
-                                                .rename(columns={"Phát Sinh Nợ":"Phát Sinh Nợ"})
-                                            )
-                                            logs.append(f"- `{fn}` | `{sh}` xoá {len(dup)} dòng")
+                                            logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
-                                        df = df.drop(dup.index)
-                                        df.drop(columns=["Tên chuẩn","Tiền chuẩn"], inplace=True)
+                                        df = df[~df.index.isin(matched.index)]
+                                        df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)
 
-                                    # --- save sheet ---
-                                    df.to_excel(writer, sheet_name=sh, index=False)
-                                    # quick header style
-                                    wb = writer.book; ws = writer.sheets[sh]
-                                    hdr = wb.add_format({"bold":True,"bg_color":"#FFE699","border":1})
-                                    [ws.write(0,c, col,hdr) for c,col in enumerate(df.columns)]
+                                    df.to_excel(writer, sheet_name=sheet, index=False)
 
-                            mem.seek(0)
-                            z_out.writestr(fn, mem.read())
+                                    workbook = writer.book
+                                    worksheet = writer.sheets[sheet]
+                                    header_format = workbook.add_format({
+                                        'bold': True, 'bg_color': '#FFE699', 'border': 1
+                                    })
 
-                        st.progress(i/total, text=f"🗃️ Xử lý {i}/{total} file")
+                                    for col_num, col_name in enumerate(df.columns):
+                                        worksheet.write(0, col_num, col_name, header_format)
+                                        max_width = max([len(str(col_name))] + [len(str(v)) for v in df[col_name]])
+                                        worksheet.set_column(col_num, col_num, max_width + 2)
 
-                # store session
-                st.session_state["zip_ready"]            = True
-                st.session_state["zip_buffer"]           = z_out_buf.getvalue()
-                st.session_state["matched_rows_summary"] = summary
-                st.session_state["logs"]                 = logs
+                                    worksheet.set_tab_color("#FFC000")
 
-                st.success(f"✅ Đã xoá {removed_total} dòng trùng trong {total} file Excel.")
+                            output.seek(0)
+                            zip_out.writestr(file_name, output.read())
+
+                        progress.progress((idx + 1) / total_files, text=f"✅ Đã xử lý {idx + 1}/{total_files} file")
+
+                # Lưu kết quả
+                st.session_state["matched_rows_summary"] = matched_rows_summary
+                st.session_state["logs"] = logs
+                st.session_state["zip_buffer"] = zip_buffer.getvalue()
+                st.session_state["zip_ready"] = True
+
+                st.success(f"🎉 Đã xoá tổng cộng {total_removed} dòng trùng trong {total_files} file Excel.")
 
             except Exception as e:
-                st.error("❌ Lỗi khi xử lý:")
+                st.error("❌ Lỗi khi xử lý ZIP:")
                 st.code(traceback.format_exc(), language="python")
 
-    # ---------- SHOW RESULT ----------
-    if st.session_state.get("zip_ready"):
-        st.download_button("📥 Tải ZIP đã xoá trùng",
-                           data=st.session_state["zip_buffer"],
-                           file_name="sau_xoa_trung.zip")
+    if st.session_state.get("zip_ready") and "matched_rows_summary" in st.session_state:
+        logs = st.session_state["logs"]
+        matched_rows_summary = st.session_state["matched_rows_summary"]
+        zip_data = st.session_state["zip_buffer"]
 
-        if st.session_state["logs"]:
-            st.markdown("### 📋 Tóm tắt")
-            st.markdown("\n".join(st.session_state["logs"]))
+        st.download_button(
+            "📥 Tải file ZIP sau khi xoá trùng",
+            data=zip_data,
+            file_name="sau_xoa_trung.zip"
+        )
 
-        if st.session_state["matched_rows_summary"]:
+        if logs:
+            st.markdown("### 📋 Tóm tắt xử lý")
+            st.markdown("\n".join(logs))
+
+        if matched_rows_summary:
             st.markdown("### 🧾 Danh sách chi tiết các dòng đã xoá")
-            big_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
-            big_df.sort_values(["Ngày","Loại","Sheet"], inplace=True)
+            preview_df = pd.concat(matched_rows_summary, ignore_index=True)
+            preview_df.sort_values(by="Ngày", inplace=True)
 
-            # format tiền đẹp
-            for col in ["Số Tiền","Phát Sinh Nợ"]:
-                if col in big_df.columns:
-                    big_df[col] = big_df[col].apply(
-                        lambda x: f"{int(x):,}" if isinstance(x,(int,float)) and not pd.isna(x) else ""
-                    )
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                type_options = sorted(preview_df["Loại"].dropna().unique())
+                type_filter = st.selectbox("🗂️ Loại", ["(Tất cả)"] + type_options)
+            with col2:
+                date_options = sorted(preview_df["Ngày"].dropna().unique())
+                date_filter = st.selectbox("📅 Ngày", ["(Tất cả)"] + date_options)
+            with col3:
+                sheet_options = sorted(preview_df["Sheet"].dropna().unique())
+                sheet_filter = st.selectbox("📄 Sheet", ["(Tất cả)"] + sheet_options)
+            with col4:
+                name_options = sorted(preview_df["Tên Đối Tượng"].dropna().unique())
+                name_filter = st.selectbox("🧑‍⚕️ Tên", ["(Tất cả)"] + name_options)
 
-            # ---- FILTER UI ----
-            c1,c2,c3,c4 = st.columns(4)
-            with c1:
-                f_loai  = st.selectbox("🗂️ Loại",  ["(Tất cả)"]+sorted(big_df["Loại"].unique()))
-            with c2:
-                f_ngay  = st.selectbox("📅 Ngày",   ["(Tất cả)"]+sorted(big_df["Ngày"].unique()))
-            with c3:
-                f_sheet = st.selectbox("📄 Sheet", ["(Tất cả)"]+sorted(big_df["Sheet"].unique()))
-            with c4:
-                f_ten   = st.selectbox("👤 Tên",   ["(Tất cả)"]+sorted(big_df["Tên Đối Tượng"].unique()))
+            filtered_df = preview_df.copy()
+            if type_filter != "(Tất cả)":
+                filtered_df = filtered_df[filtered_df["Loại"] == type_filter]
+            if date_filter != "(Tất cả)":
+                filtered_df = filtered_df[filtered_df["Ngày"] == date_filter]
+            if sheet_filter != "(Tất cả)":
+                filtered_df = filtered_df[filtered_df["Sheet"] == sheet_filter]
+            if name_filter != "(Tất cả)":
+                filtered_df = filtered_df[filtered_df["Tên Đối Tượng"] == name_filter]
 
-            filt = big_df.copy()
-            if f_loai  != "(Tất cả)": filt = filt[filt["Loại"]==f_loai]
-            if f_ngay  != "(Tất cả)": filt = filt[filt["Ngày"]==f_ngay]
-            if f_sheet != "(Tất cả)": filt = filt[filt["Sheet"]==f_sheet]
-            if f_ten   != "(Tất cả)": filt = filt[filt["Tên Đối Tượng"]==f_ten]
-
-            st.dataframe(
-                filt[["Loại","Ngày","Sheet","STT Gốc","Tên Đối Tượng","Số Tiền","Phát Sinh Nợ"]],
-                use_container_width=True
-            )
+            st.dataframe(filtered_df, use_container_width=True)
