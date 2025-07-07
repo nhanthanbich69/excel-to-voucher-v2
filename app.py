@@ -347,8 +347,9 @@ with tab2:
                                                 temp_matched["Loại"] = extract_type_from_path(file_name)
                                                 temp_matched["Ngày"] = extract_date_from_filename(file_name)
                                                 temp_matched["Sheet"] = sheet
+                                                temp_matched["Lý do"] = "Trùng tên + số tiền với file gốc"
                                                 matched_rows_summary.append(
-                                                    temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng"]]
+                                                    temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Lý do"]]
                                                 )
                                                 logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
@@ -435,7 +436,6 @@ with tab2:
 
             st.dataframe(filtered_df, use_container_width=True)
 
-            # Bảng tổng hợp
             st.markdown("### 📊 Tổng hợp số dòng đã xoá theo loại")
             summary_df = filtered_df.groupby("Loại").size().reset_index(name="Số dòng đã xoá")
             st.dataframe(summary_df, use_container_width=True)
