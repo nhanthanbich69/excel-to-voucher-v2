@@ -257,15 +257,7 @@ with tab2:
         try:
             if pd.isna(val):
                 return None
-    
-            val = str(val).strip()
-            val = val.replace("=VALUE(", "").replace(")", "")
-            val = val.replace(".", "").replace(",", "")  # xoá dấu ngăn cách số Việt Nam
-            val = re.sub(r"[^\d\-]", "", val)  # chỉ giữ số và dấu trừ
-    
-            if val == "":
-                return None
-    
+            val = str(val).replace("=VALUE(", "").replace(")", "").replace(",", "").strip()
             return round(float(val), 0)
         except:
             return None
@@ -353,8 +345,20 @@ with tab2:
                                             temp_matched["Ngày"] = extract_date_from_filename(file_name)
                                             temp_matched["Sheet"] = sheet
                                             temp_matched["STT Gốc"] = temp_matched.index
+                                            temp_matched["Phát Sinh Nợ"] = temp_matched.apply(
+                                                lambda row: base_df.loc[
+                                                    (base_df["Tên chuẩn"] == row["Tên chuẩn"]) &
+                                                    (base_df["Tiền chuẩn"] == row["Tiền chuẩn"]),
+                                                    "Phát Sinh Nợ"
+                                                ].values[0]
+                                                if any(
+                                                    (base_df["Tên chuẩn"] == row["Tên chuẩn"]) &
+                                                    (base_df["Tiền chuẩn"] == row["Tiền chuẩn"])
+                                                ) else None,
+                                                axis=1
+                                            )
                                             matched_rows_summary.append(
-                                                temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng"]]
+                                                temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Phát Sinh Nợ"]]
                                             )
                                             logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
@@ -381,7 +385,6 @@ with tab2:
 
                         progress.progress((idx + 1) / total_files, text=f"✅ Đã xử lý {idx + 1}/{total_files} file")
 
-                # Lưu kết quả
                 st.session_state["matched_rows_summary"] = matched_rows_summary
                 st.session_state["logs"] = logs
                 st.session_state["zip_buffer"] = zip_buffer.getvalue()
@@ -413,6 +416,14 @@ with tab2:
             preview_df = pd.concat(matched_rows_summary, ignore_index=True)
             preview_df.sort_values(by="Ngày", inplace=True)
 
+            # Định dạng tiền
+            preview_df["Số Tiền"] = preview_df["Số Tiền"].apply(
+                lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and not pd.isna(x) else ""
+            )
+            preview_df["Phát Sinh Nợ"] = preview_df["Phát Sinh Nợ"].apply(
+                lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and not pd.isna(x) else ""
+            )
+
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 type_options = sorted(preview_df["Loại"].dropna().unique())
@@ -437,4 +448,7 @@ with tab2:
             if name_filter != "(Tất cả)":
                 filtered_df = filtered_df[filtered_df["Tên Đối Tượng"] == name_filter]
 
-            st.dataframe(filtered_df, use_container_width=True)
+            st.dataframe(
+                filtered_df[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Phát Sinh Nợ"]],
+                use_container_width=True
+            )
