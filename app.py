@@ -255,7 +255,10 @@ with tab2:
 
     def normalize_money(val):
         try:
-            return pd.to_numeric(val, errors='coerce')
+            if isinstance(val, str) and val.strip().startswith("=VALUE("):
+                # Trích số trong công thức Excel: =VALUE(123456)
+                val = re.sub(r"[^\d\.\-]", "", val)
+            return pd.to_numeric(val, errors="coerce")
         except:
             return None
 
