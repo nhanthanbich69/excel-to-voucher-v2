@@ -292,16 +292,16 @@ with tab2:
             base_pairs = set(zip(base_df["Tên chuẩn"], base_df["Tiền chuẩn"]))
 
             zip_in = zipfile.ZipFile(zip_compare_file, 'r')
+            zip_namelist = [fn for fn in zip_in.namelist() if fn.lower().endswith(".xlsx")]
+            total_files = len(zip_namelist)
             zip_buffer = BytesIO()
 
+            progress = st.progress(0, text="🚧 Đang xử lý ZIP...")
+            logs = []
+            total_removed = 0
+
             with zipfile.ZipFile(zip_buffer, "w") as zip_out:
-                total_removed = 0
-                logs = []
-
-                for file_name in zip_in.namelist():
-                    if not file_name.lower().endswith(".xlsx"):
-                        continue
-
+                for idx, file_name in enumerate(zip_namelist):
                     with zip_in.open(file_name) as f:
                         xls = pd.ExcelFile(f)
                         output = BytesIO()
@@ -313,18 +313,24 @@ with tab2:
                                 if "Tên Đối Tượng" in df.columns and "Số Tiền" in df.columns:
                                     df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
                                     df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money)
-                                    before = len(df)
-                                    df = df[~df[["Tên chuẩn", "Tiền chuẩn"]].apply(tuple, axis=1).isin(base_pairs)]
-                                    after = len(df)
-                                    removed = before - after
-                                    total_removed += removed
-                                    logs.append(f"- 📄 {file_name} | Sheet: {sheet} 👉 Xoá {removed} dòng")
+                                    df["STT Gốc"] = df.index
 
+                                    matched = df[df[["Tên chuẩn", "Tiền chuẩn"]].apply(tuple, axis=1).isin(base_pairs)]
+                                    removed = len(matched)
+                                    total_removed += removed
+
+                                    df = df[~df.index.isin(matched.index)]
                                     df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)
+
+                                    logs.append(f"### 📄 {file_name} | Sheet: {sheet} 👉 Xoá {removed} dòng trùng")
+                                    if not matched.empty:
+                                        logs.append("| STT | Tên đối tượng | Số tiền |\n|--|--|--|")
+                                        for _, row in matched.iterrows():
+                                            logs.append(f"| {row['STT Gốc']} | {row['Tên Đối Tượng']} | {row['Số Tiền']} |")
 
                                 df.to_excel(writer, sheet_name=sheet, index=False)
 
-                                # Formatting
+                                # Format
                                 workbook = writer.book
                                 worksheet = writer.sheets[sheet]
                                 header_format = workbook.add_format({
@@ -341,16 +347,18 @@ with tab2:
                         output.seek(0)
                         zip_out.writestr(file_name, output.read())
 
-                st.success(f"✅ Đã xoá tổng cộng {total_removed} dòng trùng khắp các file Excel.")
-                st.download_button(
-                    "📥 Tải file ZIP sau khi xoá trùng",
-                    data=zip_buffer.getvalue(),
-                    file_name="sau_xoa_trung.zip"
-                )
+                    progress.progress((idx + 1) / total_files, text=f"✅ Đã xử lý {idx + 1}/{total_files} file")
 
-                if logs:
-                    st.markdown("### 📄 Chi tiết xử lý:")
-                    st.markdown("\n".join(logs))
+            st.success(f"🎉 Đã xoá tổng cộng {total_removed} dòng trùng trong {total_files} file Excel.")
+            st.download_button(
+                "📥 Tải file ZIP sau khi xoá trùng",
+                data=zip_buffer.getvalue(),
+                file_name="sau_xoa_trung.zip"
+            )
+
+            if logs:
+                st.markdown("### 📋 Chi tiết xử lý")
+                st.markdown("\n".join(logs))
 
         except Exception as e:
             st.error("❌ Lỗi khi xử lý ZIP:")
