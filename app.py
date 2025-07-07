@@ -317,13 +317,13 @@ with tab2:
             return "Thẻ"
         return "Khác"
 
-    if st.button("🚫 Xoá dòng trùng theo Tên + Ngày"):
+    if st.button("🚫 Xoá dòng trùng theo Tên + Ngày + Số Tiền"):
         if base_file and zip_compare_file:
             try:
                 base_df = pd.read_excel(base_file)
                 base_df.columns = normalize_columns(base_df.columns)
 
-                required_cols = {"Tên Đối Tượng", "Ngày Hạch Toán", "Phát Sinh Nợ"}
+                required_cols = {"Tên Đối Tượng", "Ngày Hạch Toán", "Phát Sinh Nợ", "Số Tiền"}
                 missing_cols = required_cols - set(base_df.columns)
 
                 if missing_cols:
@@ -334,7 +334,7 @@ with tab2:
                 base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
                 base_df["Ngày chuẩn"] = base_df["Ngày Hạch Toán"].apply(normalize_date)
                 base_df = base_df[base_df["Tên chuẩn"].notna() & base_df["Ngày chuẩn"].notna()]
-                base_lookup = base_df.set_index(["Tên chuẩn", "Ngày chuẩn"])["Phát Sinh Nợ"].to_dict()
+                base_lookup = base_df.set_index(["Tên chuẩn", "Ngày chuẩn", "Số Tiền"])["Phát Sinh Nợ"].to_dict()
 
                 base_pairs = set(base_lookup.keys())
 
@@ -361,10 +361,11 @@ with tab2:
                                     if "Tên Đối Tượng" in df.columns and "Ngày Hạch Toán (*)" in df.columns and "Số Tiền" in df.columns:
                                         df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
                                         df["Ngày chuẩn"] = df["Ngày Hạch Toán (*)"].apply(normalize_date)
+                                        df["Số Tiền chuẩn"] = df["Số Tiền"].apply(pd.to_numeric, errors='coerce')
                                         df["STT Gốc"] = df.index
 
                                         df["Trạng thái"] = df.apply(
-                                            lambda row: "Trùng hoàn toàn" if (row["Tên chuẩn"], row["Ngày chuẩn"]) in base_pairs else "Không trùng",
+                                            lambda row: "Trùng hoàn toàn" if (row["Tên chuẩn"], row["Ngày chuẩn"], row["Số Tiền chuẩn"]) in base_pairs else "Không trùng",
                                             axis=1
                                         )
 
@@ -377,7 +378,7 @@ with tab2:
                                             temp_matched["Loại"] = extract_type_from_path(file_name)
                                             temp_matched["Sheet"] = sheet
                                             temp_matched["Phát Sinh Nợ (File Gốc)"] = temp_matched.apply(
-                                                lambda row: base_lookup.get((row["Tên chuẩn"], row["Ngày chuẩn"])), axis=1
+                                                lambda row: base_lookup.get((row["Tên chuẩn"], row["Ngày chuẩn"], row["Số Tiền chuẩn"])), axis=1
                                             )
                                             matched_rows_summary.append(
                                                 temp_matched[[
@@ -388,7 +389,7 @@ with tab2:
                                             logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
                                         df = df[df["Trạng thái"] != "Trùng hoàn toàn"]
-                                        df.drop(columns=["Tên chuẩn", "Ngày chuẩn", "Trạng thái"], inplace=True)
+                                        df.drop(columns=["Tên chuẩn", "Ngày chuẩn", "Trạng thái", "Số Tiền chuẩn"], inplace=True)
 
                                     df.to_excel(writer, sheet_name=sheet, index=False)
 
@@ -429,7 +430,7 @@ if "logs" in st.session_state:
 
 # 👇 BẢNG preview + bộ lọc
 if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
-    st.subheader("📊 Dòng trùng đã xoá (Tên + Ngày):")
+    st.subheader("📊 Dòng trùng đã xoá (Tên + Ngày + Số Tiền):")
     combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
 
     # Bộ lọc
