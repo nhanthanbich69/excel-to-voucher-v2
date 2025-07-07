@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import zipfile
+import os
+import tempfile
 from io import BytesIO
 import traceback
 import re
@@ -239,8 +241,9 @@ tab1, tab2 = st.tabs(["🧾 Tạo File Hạch Toán", "🔍 So sánh và Xoá d�
 
 with tab2:
     st.header("🔍 So sánh với File Gốc và Xoá dòng trùng")
-    base_file = st.file_uploader("📂 File gốc (Base)", type=["xlsx"], key="base_file")
-    compare_file = st.file_uploader("📂 File cần so sánh (Xuất từ hệ thống)", type=["xlsx"], key="compare_file")
+
+    base_file = st.file_uploader("📂 File Gốc (Base - Excel)", type=["xlsx"], key="base_file")
+    zip_compare_file = st.file_uploader("📦 File ZIP đầu ra của hệ thống", type=["zip"], key="zip_compare")
 
     def normalize_name(name):
         try:
@@ -258,55 +261,70 @@ with tab2:
         except:
             return None
 
-    if st.button("🚫 Xoá dòng trùng theo Tên đối tượng + Số tiền") and base_file and compare_file:
+    if st.button("🚫 Xoá dòng trùng trong ZIP") and base_file and zip_compare_file:
         try:
+            # Đọc file gốc
             base_df = pd.read_excel(base_file)
-            compare_df = pd.read_excel(compare_file)
-
             if "Tên đối tượng" not in base_df.columns or "Phát sinh nợ" not in base_df.columns:
-                st.error("❌ File base thiếu cột 'Tên đối tượng' hoặc 'Phát sinh nợ'")
-            elif "Tên đối tượng" not in compare_df.columns or "Số tiền" not in compare_df.columns:
-                st.error("❌ File cần so sánh thiếu cột 'Tên đối tượng' hoặc 'Số tiền'")
-            else:
-                # Chuẩn hoá dữ liệu
-                base_df["Tên chuẩn"] = base_df["Tên đối tượng"].apply(normalize_name)
-                base_df["Tiền chuẩn"] = base_df["Phát sinh nợ"].apply(normalize_money)
+                st.error("❌ File gốc thiếu cột cần thiết: 'Tên đối tượng' và 'Phát sinh nợ'")
+                st.stop()
 
-                compare_df["Tên chuẩn"] = compare_df["Tên đối tượng"].apply(normalize_name)
-                compare_df["Tiền chuẩn"] = compare_df["Số tiền"].apply(normalize_money)
+            base_df["Tên chuẩn"] = base_df["Tên đối tượng"].apply(normalize_name)
+            base_df["Tiền chuẩn"] = base_df["Phát sinh nợ"].apply(normalize_money)
+            base_pairs = set(zip(base_df["Tên chuẩn"], base_df["Tiền chuẩn"]))
 
-                before = len(compare_df)
-                compare_df = compare_df.merge(
-                    base_df[["Tên chuẩn", "Tiền chuẩn"]],
-                    on=["Tên chuẩn", "Tiền chuẩn"],
-                    how="left",
-                    indicator=True
+            zip_in = zipfile.ZipFile(zip_compare_file, 'r')
+            zip_buffer = BytesIO()
+
+            with zipfile.ZipFile(zip_buffer, "w") as zip_out:
+                total_removed = 0
+                for file_name in zip_in.namelist():
+                    if not file_name.lower().endswith(".xlsx"):
+                        continue
+
+                    # Đọc file excel trong zip
+                    with zip_in.open(file_name) as f:
+                        xls = pd.ExcelFile(f)
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                            for sheet in xls.sheet_names:
+                                df = pd.read_excel(xls, sheet_name=sheet)
+                                if "Tên đối tượng" in df.columns and "Số tiền" in df.columns:
+                                    df["Tên chuẩn"] = df["Tên đối tượng"].apply(normalize_name)
+                                    df["Tiền chuẩn"] = df["Số tiền"].apply(normalize_money)
+                                    before = len(df)
+                                    df = df[~df[["Tên chuẩn", "Tiền chuẩn"]].apply(tuple, axis=1).isin(base_pairs)]
+                                    after = len(df)
+                                    removed = before - after
+                                    total_removed += removed
+
+                                    df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)
+
+                                df.to_excel(writer, sheet_name=sheet, index=False)
+
+                                # Định dạng lại
+                                workbook = writer.book
+                                worksheet = writer.sheets[sheet]
+                                header_format = workbook.add_format({
+                                    'bold': True, 'bg_color': '#FFE699', 'border': 1
+                                })
+                                for col_num, col_name in enumerate(df.columns):
+                                    worksheet.write(0, col_num, col_name, header_format)
+                                    max_width = max([len(str(col_name))] + [len(str(v)) for v in df[col_name]])
+                                    worksheet.set_column(col_num, col_num, max_width + 2)
+                                worksheet.set_tab_color("#FFC000")
+
+                        output.seek(0)
+                        zip_out.writestr(file_name, output.read())
+
+                st.success(f"✅ Đã xoá tổng cộng {total_removed} dòng trùng khắp các file Excel.")
+
+                st.download_button(
+                    "📥 Tải file ZIP sau khi xoá trùng",
+                    data=zip_buffer.getvalue(),
+                    file_name="sau_xoa_trung.zip"
                 )
-                compare_df = compare_df[compare_df["_merge"] == "left_only"]
-                compare_df.drop(columns=["Tên chuẩn", "Tiền chuẩn", "_merge"], inplace=True)
-                after = len(compare_df)
-
-                st.success(f"✅ Đã xoá {before - after} dòng trùng. Còn lại: {after} dòng.")
-
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                    compare_df.to_excel(writer, index=False, sheet_name="Sau Xóa")
-
-                    workbook = writer.book
-                    worksheet = writer.sheets["Sau Xóa"]
-                    header_format = workbook.add_format({
-                        'bold': True, 'bg_color': '#FCE4D6', 'border': 1
-                    })
-
-                    for col_num, col_name in enumerate(compare_df.columns):
-                        worksheet.write(0, col_num, col_name, header_format)
-                        max_width = max([len(str(col_name))] + [len(str(v)) for v in compare_df[col_name]])
-                        worksheet.set_column(col_num, col_num, max_width + 2)
-
-                    worksheet.set_tab_color('#FF9900')
-
-                st.download_button("📥 Tải file đã xoá trùng", data=output.getvalue(), file_name="sau_xoa_trung.xlsx")
 
         except Exception as e:
-            st.error("❌ Lỗi khi xử lý so sánh")
+            st.error("❌ Lỗi khi xử lý ZIP:")
             st.code(traceback.format_exc(), language="python")
