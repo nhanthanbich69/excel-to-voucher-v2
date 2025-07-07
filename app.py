@@ -257,7 +257,15 @@ with tab2:
         try:
             if pd.isna(val):
                 return None
-            val = str(val).replace("=VALUE(", "").replace(")", "").replace(",", "").strip()
+    
+            val = str(val).strip()
+            val = val.replace("=VALUE(", "").replace(")", "")
+            val = val.replace(".", "").replace(",", "")  # xoá dấu ngăn cách số Việt Nam
+            val = re.sub(r"[^\d\-]", "", val)  # chỉ giữ số và dấu trừ
+    
+            if val == "":
+                return None
+    
             return round(float(val), 0)
         except:
             return None
