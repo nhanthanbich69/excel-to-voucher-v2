@@ -434,3 +434,24 @@ with tab2:
             data=st.session_state["zip_buffer"],
             file_name="output_cleaned.zip"
         )
+    if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
+        st.subheader("📊 Dòng trùng đã xoá (Tên + Ngày):")
+        combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
+        st.dataframe(combined_df)
+
+        # 👇 Tổng hợp theo Tên Đối Tượng
+        st.subheader("📌 Tổng hợp theo Tên Đối Tượng")
+
+        summary = combined_df.groupby("Tên Đối Tượng").agg({
+            "Loại": lambda x: ", ".join(sorted(set(x))),
+            "Ngày Hạch Toán (*)": lambda x: ", ".join(sorted(set(x))),
+            "Số Tiền": "sum",
+            "STT Gốc": "count"
+        }).reset_index().rename(columns={
+            "Loại": "Loại liên quan",
+            "Ngày Hạch Toán (*)": "Các ngày hạch toán",
+            "Số Tiền": "Tổng tiền đã xoá",
+            "STT Gốc": "Số lần bị xoá"
+        })
+
+        st.dataframe(summary)
