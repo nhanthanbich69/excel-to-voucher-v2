@@ -293,7 +293,7 @@ with tab2:
                 base_df = pd.read_excel(base_file)
                 base_df.columns = normalize_columns(base_df.columns)
 
-                required_cols = {"Tên Đối Tượng", "Ngày Hạch Toán"}
+                required_cols = {"Tên Đối Tượng", "Ngày Hạch Toán", "Phát Sinh Nợ"}
                 missing_cols = required_cols - set(base_df.columns)
 
                 if missing_cols:
@@ -304,7 +304,9 @@ with tab2:
                 base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
                 base_df["Ngày chuẩn"] = base_df["Ngày Hạch Toán"].apply(normalize_date)
                 base_df = base_df[base_df["Tên chuẩn"].notna() & base_df["Ngày chuẩn"].notna()]
-                base_pairs = set(zip(base_df["Tên chuẩn"], base_df["Ngày chuẩn"]))
+                base_lookup = base_df.set_index(["Tên chuẩn", "Ngày chuẩn"])["Phát Sinh Nợ"].to_dict()
+
+                base_pairs = set(base_lookup.keys())
 
                 zip_in = zipfile.ZipFile(zip_compare_file, 'r')
                 zip_namelist = [fn for fn in zip_in.namelist() if fn.lower().endswith(".xlsx")]
@@ -326,7 +328,7 @@ with tab2:
                                     df = pd.read_excel(xls, sheet_name=sheet)
                                     df.columns = normalize_columns(df.columns)
 
-                                    if "Tên Đối Tượng" in df.columns and "Ngày Hạch Toán (*)" in df.columns:
+                                    if "Tên Đối Tượng" in df.columns and "Ngày Hạch Toán (*)" in df.columns and "Số Tiền" in df.columns:
                                         df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
                                         df["Ngày chuẩn"] = df["Ngày Hạch Toán (*)"].apply(normalize_date)
                                         df["STT Gốc"] = df.index
@@ -344,8 +346,14 @@ with tab2:
                                             temp_matched = matched.copy()
                                             temp_matched["Loại"] = extract_type_from_path(file_name)
                                             temp_matched["Sheet"] = sheet
+                                            temp_matched["Phát Sinh Nợ (File Gốc)"] = temp_matched.apply(
+                                                lambda row: base_lookup.get((row["Tên chuẩn"], row["Ngày chuẩn"])), axis=1
+                                            )
                                             matched_rows_summary.append(
-                                                temp_matched[["Loại", "Sheet", "STT Gốc", "Tên Đối Tượng", "Ngày Hạch Toán (*)"]]
+                                                temp_matched[[
+                                                    "Loại", "Sheet", "STT Gốc", "Tên Đối Tượng",
+                                                    "Ngày Hạch Toán (*)", "Số Tiền", "Phát Sinh Nợ (File Gốc)"
+                                                ]]
                                             )
                                             logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
@@ -390,7 +398,7 @@ with tab2:
             st.markdown(log)
 
     if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
-        st.subheader("📊 Dòng trùng đã xoá")
+        st.subheader("📊 Dòng trùng đã xoá (Tên + Ngày):")
         combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
         st.dataframe(combined_df)
 
