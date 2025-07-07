@@ -477,12 +477,20 @@ with tab3:
                 "PT_VACCINE": [], "PC_VACCINE": []
             }
 
+            # 🧠 Lấy tên tháng & năm từ file zip nếu có thể
+            match = re.search(r't(\d{1,2})[_\-\.](\d{4})', zip_input.name.lower())
+            if match:
+                thang_text = f"T{int(match.group(1))}"
+                nam_text = match.group(2)
+            else:
+                thang_text = "TBD"
+                nam_text = "XXXX"
+
             with zipfile.ZipFile(zip_input, "r") as zipf:
                 for filename in zipf.namelist():
                     if not filename.endswith(".xlsx"):
                         continue
 
-                    # Đọc nội dung file
                     with zipf.open(filename) as f:
                         xls = pd.ExcelFile(f)
                         for sheet_name in xls.sheet_names:
@@ -507,27 +515,39 @@ with tab3:
                                 df_filtered = df[["Ngày chứng từ (*)", "Tên đối tượng", "Số tiền"]].copy()
                                 group_data[key].append(df_filtered)
 
-            # Gộp và ghi ra file
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 for key, df_list in group_data.items():
                     if not df_list:
                         continue
                     merged_df = pd.concat(df_list, ignore_index=True)
-                    merged_df.to_excel(writer, sheet_name=key, index=False)
+                    merged_df.columns = ["Ngày", "Tên", "Số tiền"]
 
-                    # Format
+                    # Thêm công thức cột Ghi chú
+                    merged_df["Ghi chú"] = ""
+
+                    merged_df.to_excel(writer, sheet_name=key, index=False, startrow=0, header=True)
+
                     workbook = writer.book
                     worksheet = writer.sheets[key]
+
+                    # Format header
                     header_format = workbook.add_format({'bold': True, 'bg_color': '#FCE4D6', 'border': 1})
                     for col_num, value in enumerate(merged_df.columns):
                         worksheet.write(0, col_num, value, header_format)
                         max_width = max(len(str(value)), *(merged_df.iloc[:, col_num].astype(str).map(len)))
                         worksheet.set_column(col_num, col_num, max_width + 2)
+
+                    # Viết công thức Ghi chú
+                    for row_num in range(1, len(merged_df)+1):
+                        formula = f'=IF(COUNTIFS(A:A,A{row_num+1},B:B,B{row_num+1},C:C,C{row_num+1})>1,"Lặp","")'
+                        worksheet.write_formula(row_num, 3, formula)
+
                     worksheet.set_tab_color("#FFD966")
 
-            st.success("🎉 Đã gộp xong dữ liệu toàn tháng!")
-            st.download_button("📥 Tải File Tổng Hợp", data=output.getvalue(), file_name="TongHop_Thang.xlsx")
+            file_name_out = f"TongHop_{thang_text}_{nam_text}.xlsx"
+            st.success(f"🎉 Đã gộp xong dữ liệu tháng {thang_text}/{nam_text}!")
+            st.download_button("📥 Tải File Tổng Hợp", data=output.getvalue(), file_name=file_name_out)
 
         except Exception as e:
             st.error("❌ Lỗi khi xử lý file Zip:")
