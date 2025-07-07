@@ -265,8 +265,13 @@ with tab2:
         try:
             # Đọc file gốc
             base_df = pd.read_excel(base_file)
-            if "Tên đối tượng" not in base_df.columns or "Phát sinh nợ" not in base_df.columns:
-                st.error("❌ File gốc thiếu cột cần thiết: 'Tên đối tượng' và 'Phát sinh nợ'")
+
+            required_cols = {"Tên đối tượng", "Phát sinh nợ"}
+            missing_cols = required_cols - set(base_df.columns)
+
+            if missing_cols:
+                st.error(f"""❌ File gốc **{base_file.name}** thiếu cột: {', '.join(missing_cols)}
+🔍 Các cột hiện có: {', '.join(base_df.columns)}""")
                 st.stop()
 
             base_df["Tên chuẩn"] = base_df["Tên đối tượng"].apply(normalize_name)
@@ -278,17 +283,19 @@ with tab2:
 
             with zipfile.ZipFile(zip_buffer, "w") as zip_out:
                 total_removed = 0
+                logs = []
+
                 for file_name in zip_in.namelist():
                     if not file_name.lower().endswith(".xlsx"):
                         continue
 
-                    # Đọc file excel trong zip
                     with zip_in.open(file_name) as f:
                         xls = pd.ExcelFile(f)
                         output = BytesIO()
                         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                             for sheet in xls.sheet_names:
                                 df = pd.read_excel(xls, sheet_name=sheet)
+
                                 if "Tên đối tượng" in df.columns and "Số tiền" in df.columns:
                                     df["Tên chuẩn"] = df["Tên đối tượng"].apply(normalize_name)
                                     df["Tiền chuẩn"] = df["Số tiền"].apply(normalize_money)
@@ -297,12 +304,12 @@ with tab2:
                                     after = len(df)
                                     removed = before - after
                                     total_removed += removed
+                                    logs.append(f"- {file_name} | Sheet: {sheet} 👉 Đã xoá {removed} dòng trùng")
 
                                     df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)
 
                                 df.to_excel(writer, sheet_name=sheet, index=False)
 
-                                # Định dạng lại
                                 workbook = writer.book
                                 worksheet = writer.sheets[sheet]
                                 header_format = workbook.add_format({
@@ -318,12 +325,15 @@ with tab2:
                         zip_out.writestr(file_name, output.read())
 
                 st.success(f"✅ Đã xoá tổng cộng {total_removed} dòng trùng khắp các file Excel.")
-
                 st.download_button(
                     "📥 Tải file ZIP sau khi xoá trùng",
                     data=zip_buffer.getvalue(),
                     file_name="sau_xoa_trung.zip"
                 )
+
+                if logs:
+                    st.markdown("### 📄 Chi tiết xử lý:")
+                    st.markdown("\n".join(logs))
 
         except Exception as e:
             st.error("❌ Lỗi khi xử lý ZIP:")
