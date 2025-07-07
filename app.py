@@ -13,7 +13,7 @@ st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
 tab1, tab2, tab3 = st.tabs([
     "🧾 Tạo File Hạch Toán", 
     "🔍 So sánh và Xoá dòng trùng",
-    "📊 Gộp Dữ Liệu Tháng Thành 1 File"
+    "📊 File tuỳ chỉnh (Check thủ công)"
 ])
 
 with tab1:
