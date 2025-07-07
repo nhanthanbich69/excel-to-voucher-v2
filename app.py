@@ -261,12 +261,25 @@ with tab2:
         except:
             return None
 
+    def normalize_columns(columns):
+        return [
+            str(c).strip()
+            .replace('\xa0', ' ')
+            .replace('\n', ' ')
+            .replace('\t', ' ')
+            .replace('\r', ' ')
+            .strip()
+            .title()
+        for c in columns
+    ]
+
     if st.button("🚫 Xoá dòng trùng trong ZIP") and base_file and zip_compare_file:
         try:
-            # Đọc file gốc
+            # Đọc file gốc và chuẩn hóa cột
             base_df = pd.read_excel(base_file)
+            base_df.columns = normalize_columns(base_df.columns)
 
-            required_cols = {"Tên đối tượng", "Phát sinh nợ"}
+            required_cols = {"Tên Đối Tượng", "Phát Sinh Nợ"}
             missing_cols = required_cols - set(base_df.columns)
 
             if missing_cols:
@@ -274,8 +287,8 @@ with tab2:
 🔍 Các cột hiện có: {', '.join(base_df.columns)}""")
                 st.stop()
 
-            base_df["Tên chuẩn"] = base_df["Tên đối tượng"].apply(normalize_name)
-            base_df["Tiền chuẩn"] = base_df["Phát sinh nợ"].apply(normalize_money)
+            base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
+            base_df["Tiền chuẩn"] = base_df["Phát Sinh Nợ"].apply(normalize_money)
             base_pairs = set(zip(base_df["Tên chuẩn"], base_df["Tiền chuẩn"]))
 
             zip_in = zipfile.ZipFile(zip_compare_file, 'r')
@@ -295,30 +308,34 @@ with tab2:
                         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                             for sheet in xls.sheet_names:
                                 df = pd.read_excel(xls, sheet_name=sheet)
+                                df.columns = normalize_columns(df.columns)
 
-                                if "Tên đối tượng" in df.columns and "Số tiền" in df.columns:
-                                    df["Tên chuẩn"] = df["Tên đối tượng"].apply(normalize_name)
-                                    df["Tiền chuẩn"] = df["Số tiền"].apply(normalize_money)
+                                if "Tên Đối Tượng" in df.columns and "Số Tiền" in df.columns:
+                                    df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
+                                    df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money)
                                     before = len(df)
                                     df = df[~df[["Tên chuẩn", "Tiền chuẩn"]].apply(tuple, axis=1).isin(base_pairs)]
                                     after = len(df)
                                     removed = before - after
                                     total_removed += removed
-                                    logs.append(f"- {file_name} | Sheet: {sheet} 👉 Đã xoá {removed} dòng trùng")
+                                    logs.append(f"- 📄 {file_name} | Sheet: {sheet} 👉 Xoá {removed} dòng")
 
                                     df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)
 
                                 df.to_excel(writer, sheet_name=sheet, index=False)
 
+                                # Formatting
                                 workbook = writer.book
                                 worksheet = writer.sheets[sheet]
                                 header_format = workbook.add_format({
                                     'bold': True, 'bg_color': '#FFE699', 'border': 1
                                 })
+
                                 for col_num, col_name in enumerate(df.columns):
                                     worksheet.write(0, col_num, col_name, header_format)
                                     max_width = max([len(str(col_name))] + [len(str(v)) for v in df[col_name]])
                                     worksheet.set_column(col_num, col_num, max_width + 2)
+
                                 worksheet.set_tab_color("#FFC000")
 
                         output.seek(0)
