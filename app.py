@@ -389,20 +389,25 @@ with tab2:
                 preview_df = pd.concat(matched_rows_summary, ignore_index=True)
                 preview_df.sort_values(by="Ngày", inplace=True)
 
-                # Lọc
+                # Giao diện lọc gọn đẹp
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    type_filter = st.multiselect("🗂️ Chọn loại", preview_df["Loại"].unique(), default=preview_df["Loại"].unique())
+                    type_options = sorted(preview_df["Loại"].dropna().unique())
+                    type_filter = st.selectbox("🗂️ Loại", ["(Tất cả)"] + type_options)
                 with col2:
-                    date_filter = st.multiselect("📅 Chọn ngày", preview_df["Ngày"].unique(), default=preview_df["Ngày"].unique())
+                    date_options = sorted(preview_df["Ngày"].dropna().unique())
+                    date_filter = st.selectbox("📅 Ngày", ["(Tất cả)"] + date_options)
                 with col3:
-                    name_filter = st.multiselect("🧑‍⚕️ Chọn tên", preview_df["Tên Đối Tượng"].unique(), default=preview_df["Tên Đối Tượng"].unique())
+                    name_options = sorted(preview_df["Tên Đối Tượng"].dropna().unique())
+                    name_filter = st.selectbox("🧑‍⚕️ Tên", ["(Tất cả)"] + name_options)
 
-                filtered_df = preview_df[
-                    preview_df["Loại"].isin(type_filter) &
-                    preview_df["Ngày"].isin(date_filter) &
-                    preview_df["Tên Đối Tượng"].isin(name_filter)
-                ]
+                filtered_df = preview_df.copy()
+                if type_filter != "(Tất cả)":
+                    filtered_df = filtered_df[filtered_df["Loại"] == type_filter]
+                if date_filter != "(Tất cả)":
+                    filtered_df = filtered_df[filtered_df["Ngày"] == date_filter]
+                if name_filter != "(Tất cả)":
+                    filtered_df = filtered_df[filtered_df["Tên Đối Tượng"] == name_filter]
 
                 st.dataframe(filtered_df, use_container_width=True)
 
