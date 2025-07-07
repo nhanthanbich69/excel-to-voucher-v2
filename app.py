@@ -417,16 +417,41 @@ with tab2:
                 st.error("❌ Lỗi khi xử lý ZIP:")
                 st.code(traceback.format_exc(), language="python")
 
-# 👇 LOG và BẢNG CHI TIẾT
+# 👇 LOG chi tiết
 if "logs" in st.session_state:
     st.subheader("📜 Log chi tiết đã xử lý")
     for log in st.session_state["logs"]:
         st.markdown(log)
 
+# 👇 BẢNG preview + bộ lọc
 if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
     st.subheader("📊 Dòng trùng đã xoá (Tên + Ngày):")
     combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
-    st.dataframe(combined_df)
+
+    # Bộ lọc
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        filter_type = st.selectbox("🔍 Lọc theo Loại", ["Tất cả"] + sorted(combined_df["Loại"].unique()))
+    with col2:
+        filter_sheet = st.selectbox("📄 Lọc theo Sheet", ["Tất cả"] + sorted(combined_df["Sheet"].unique()))
+    with col3:
+        filter_name = st.text_input("🧍 Lọc theo Tên chứa", "")
+    with col4:
+        filter_date = st.text_input("📅 Lọc theo Ngày Hạch Toán", "")
+
+    # Áp dụng filter
+    filtered_df = combined_df.copy()
+    if filter_type != "Tất cả":
+        filtered_df = filtered_df[filtered_df["Loại"] == filter_type]
+    if filter_sheet != "Tất cả":
+        filtered_df = filtered_df[filtered_df["Sheet"] == filter_sheet]
+    if filter_name.strip():
+        filtered_df = filtered_df[filtered_df["Tên Đối Tượng"].str.contains(filter_name.strip(), case=False, na=False)]
+    if filter_date.strip():
+        filtered_df = filtered_df[filtered_df["Ngày Hạch Toán (*)"].astype(str).str.contains(filter_date.strip())]
+
+    st.dataframe(filtered_df)
 
 # 👇 Button tải file
 if "zip_buffer" in st.session_state and st.session_state["zip_ready"]:
