@@ -10,7 +10,11 @@ from openpyxl import load_workbook  # <- cần thiết cho xử lý công thức
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
-tab1, tab2 = st.tabs(["🧾 Tạo File Hạch Toán", "🔍 So sánh và Xoá dòng trùng"])
+tab1, tab2, tab3 = st.tabs([
+    "🧾 Tạo File Hạch Toán", 
+    "🔍 So sánh và Xoá dòng trùng",
+    "📊 Gộp Dữ Liệu Tháng Thành 1 File"
+])
 
 with tab1:
     uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
@@ -460,3 +464,71 @@ if "zip_buffer" in st.session_state and st.session_state["zip_ready"]:
         data=st.session_state["zip_buffer"],
         file_name="output_cleaned.zip"
     )
+
+with tab3:
+    st.header("📊 Gộp Dữ Liệu Tháng Thành 1 File Excel Tổng Hợp")
+    zip_input = st.file_uploader("📂 Tải lên file Zip đầu ra từ Tab 1", type=["zip"], key="zip_monthly")
+
+    if zip_input:
+        try:
+            group_data = {
+                "PT_KCB": [], "PC_KCB": [],
+                "PT_THUOC": [], "PC_THUOC": [],
+                "PT_VACCINE": [], "PC_VACCINE": []
+            }
+
+            with zipfile.ZipFile(zip_input, "r") as zipf:
+                for filename in zipf.namelist():
+                    if not filename.endswith(".xlsx"):
+                        continue
+
+                    # Đọc nội dung file
+                    with zipf.open(filename) as f:
+                        xls = pd.ExcelFile(f)
+                        for sheet_name in xls.sheet_names:
+                            if sheet_name.startswith("PT") or sheet_name.startswith("PC"):
+                                df = xls.parse(sheet_name)
+                                if not set(["Ngày chứng từ (*)", "Tên đối tượng", "Số tiền"]).issubset(df.columns):
+                                    continue
+
+                                short_type = None
+                                if "KCB" in filename.upper():
+                                    short_type = "KCB"
+                                elif "THUOC" in filename.upper():
+                                    short_type = "THUOC"
+                                elif "VACCINE" in filename.upper():
+                                    short_type = "VACCINE"
+                                else:
+                                    continue
+
+                                mode = "PT" if sheet_name.startswith("PT") else "PC"
+                                key = f"{mode}_{short_type}"
+
+                                df_filtered = df[["Ngày chứng từ (*)", "Tên đối tượng", "Số tiền"]].copy()
+                                group_data[key].append(df_filtered)
+
+            # Gộp và ghi ra file
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                for key, df_list in group_data.items():
+                    if not df_list:
+                        continue
+                    merged_df = pd.concat(df_list, ignore_index=True)
+                    merged_df.to_excel(writer, sheet_name=key, index=False)
+
+                    # Format
+                    workbook = writer.book
+                    worksheet = writer.sheets[key]
+                    header_format = workbook.add_format({'bold': True, 'bg_color': '#FCE4D6', 'border': 1})
+                    for col_num, value in enumerate(merged_df.columns):
+                        worksheet.write(0, col_num, value, header_format)
+                        max_width = max(len(str(value)), *(merged_df.iloc[:, col_num].astype(str).map(len)))
+                        worksheet.set_column(col_num, col_num, max_width + 2)
+                    worksheet.set_tab_color("#FFD966")
+
+            st.success("🎉 Đã gộp xong dữ liệu toàn tháng!")
+            st.download_button("📥 Tải File Tổng Hợp", data=output.getvalue(), file_name="TongHop_Thang.xlsx")
+
+        except Exception as e:
+            st.error("❌ Lỗi khi xử lý file Zip:")
+            st.code(traceback.format_exc(), language="python")
