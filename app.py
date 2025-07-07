@@ -5,16 +5,11 @@ import os
 from io import BytesIO
 import traceback
 import re
-
 from openpyxl import load_workbook  # <- cần thiết cho xử lý công thức
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
-tab1, tab2, tab3 = st.tabs([
-    "🧾 Tạo File Hạch Toán",
-    "🔍 So sánh và Xoá dòng trùng",
-    "🧹 Làm sạch công thức `=VALUE(...)`"
-])
+tab1, tab2, tab3 = st.tabs(["🧾 Tạo File Hạch Toán", "🔍 So sánh và Xoá dòng trùng"])
 
 with tab1:
     uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
