@@ -257,7 +257,8 @@ with tab2:
         try:
             if pd.isna(val) or str(val).strip() in ["", "-", "NaN"]:
                 return None
-            val = str(val).replace("=VALUE(", "").replace(")", "").replace(",", "").replace(".", "").strip()
+            val = str(val)
+            val = re.sub(r'[^\d\-]', '', val)  # Xoá mọi ký tự không phải số và dấu trừ
             return float(val)
         except:
             return None
@@ -275,9 +276,10 @@ with tab2:
     ]
 
     def extract_date_from_filename(filename):
-        match = re.search(r'(\d{2})\.(\d{2})\.xlsx', filename)
+        # Tìm YYYY.MM hoặc YYYY-MM hoặc YYYY_MM
+        match = re.search(r'(\d{4})[.\-_](\d{2})', filename)
         if match:
-            return f"{match.group(1)}/{match.group(2)}"
+            return f"{match.group(2)}/{match.group(1)}"
         return ""
 
     def extract_type_from_path(path):
@@ -327,53 +329,55 @@ with tab2:
                             output = BytesIO()
                             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                                 for sheet in xls.sheet_names:
-                                    df = pd.read_excel(xls, sheet_name=sheet)
-                                    df.columns = normalize_columns(df.columns)
+                                    try:
+                                        df = pd.read_excel(xls, sheet_name=sheet)
+                                        df.columns = normalize_columns(df.columns)
 
-                                    if "Tên Đối Tượng" in df.columns and "Số Tiền" in df.columns:
-                                        df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
-                                        df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money)
-                                        df["STT Gốc"] = df.index
+                                        if "Tên Đối Tượng" in df.columns and "Số Tiền" in df.columns:
+                                            df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
+                                            df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money)
+                                            df["STT Gốc"] = df.index
 
-                                        matched = df[df[["Tên chuẩn", "Tiền chuẩn"]].apply(tuple, axis=1).isin(base_pairs)]
-                                        removed = len(matched)
-                                        total_removed += removed
+                                            matched = df[df[["Tên chuẩn", "Tiền chuẩn"]].apply(tuple, axis=1).isin(base_pairs)]
+                                            removed = len(matched)
+                                            total_removed += removed
 
-                                        if not matched.empty:
-                                            temp_matched = matched.copy()
-                                            temp_matched["Loại"] = extract_type_from_path(file_name)
-                                            temp_matched["Ngày"] = extract_date_from_filename(file_name)
-                                            temp_matched["Sheet"] = sheet
-                                            temp_matched["STT Gốc"] = temp_matched.index
-                                            matched_rows_summary.append(
-                                                temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng"]]
-                                            )
-                                            logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
+                                            if not matched.empty:
+                                                temp_matched = matched.copy()
+                                                temp_matched["Loại"] = extract_type_from_path(file_name)
+                                                temp_matched["Ngày"] = extract_date_from_filename(file_name)
+                                                temp_matched["Sheet"] = sheet
+                                                matched_rows_summary.append(
+                                                    temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng"]]
+                                                )
+                                                logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
-                                        df = df[~df.index.isin(matched.index)]
-                                        df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)
+                                            df = df[~df["STT Gốc"].isin(matched["STT Gốc"])]
+                                            df.drop(columns=["Tên chuẩn", "Tiền chuẩn", "STT Gốc"], inplace=True)
 
-                                    df.to_excel(writer, sheet_name=sheet, index=False)
+                                        df.to_excel(writer, sheet_name=sheet, index=False)
 
-                                    workbook = writer.book
-                                    worksheet = writer.sheets[sheet]
-                                    header_format = workbook.add_format({
-                                        'bold': True, 'bg_color': '#FFE699', 'border': 1
-                                    })
+                                        workbook = writer.book
+                                        worksheet = writer.sheets[sheet]
+                                        header_format = workbook.add_format({
+                                            'bold': True, 'bg_color': '#FFE699', 'border': 1
+                                        })
 
-                                    for col_num, col_name in enumerate(df.columns):
-                                        worksheet.write(0, col_num, col_name, header_format)
-                                        max_width = max([len(str(col_name))] + [len(str(v)) for v in df[col_name]])
-                                        worksheet.set_column(col_num, col_num, max_width + 2)
+                                        for col_num, col_name in enumerate(df.columns):
+                                            worksheet.write(0, col_num, col_name, header_format)
+                                            max_width = max([len(str(col_name))] + [len(str(v)) for v in df[col_name]])
+                                            worksheet.set_column(col_num, col_num, max_width + 2)
 
-                                    worksheet.set_tab_color("#FFC000")
+                                        worksheet.set_tab_color("#FFC000")
+
+                                    except Exception as e:
+                                        logs.append(f"⚠️ Sheet `{sheet}` trong file `{file_name}` bị lỗi: {str(e)}")
 
                             output.seek(0)
                             zip_out.writestr(file_name, output.read())
 
                         progress.progress((idx + 1) / total_files, text=f"✅ Đã xử lý {idx + 1}/{total_files} file")
 
-                # Lưu kết quả
                 st.session_state["matched_rows_summary"] = matched_rows_summary
                 st.session_state["logs"] = logs
                 st.session_state["zip_buffer"] = zip_buffer.getvalue()
@@ -430,3 +434,8 @@ with tab2:
                 filtered_df = filtered_df[filtered_df["Tên Đối Tượng"] == name_filter]
 
             st.dataframe(filtered_df, use_container_width=True)
+
+            # Bảng tổng hợp
+            st.markdown("### 📊 Tổng hợp số dòng đã xoá theo loại")
+            summary_df = filtered_df.groupby("Loại").size().reset_index(name="Số dòng đã xoá")
+            st.dataframe(summary_df, use_container_width=True)
