@@ -227,7 +227,6 @@ with tab1:
                             output.seek(0)
                             zip_path = f"{prefix}_{category}/{day.replace(',', '.').strip()}.xlsx"
                             zip_file.writestr(zip_path, output.read())
-                st.success("🎉 Đã xử lý xong!")
                 
                 # 🔁 Làm sạch công thức =VALUE(...) và tạo file sạch
                 cleaned_zip = BytesIO()
@@ -255,7 +254,7 @@ with tab1:
                         else:
                             zout.writestr(item, zin.read(item.filename))
 
-                st.success("🧹 Đã làm sạch công thức `=VALUE(...)`!")
+                st.success("🎉 Đã xử lý xong!")
                 st.download_button("📦 Tải File Zip Hoàn Chỉnh", data=cleaned_zip.getvalue(), file_name=f"{prefix}.zip")
 
             st.markdown("### 📄 Nhật ký xử lý")
