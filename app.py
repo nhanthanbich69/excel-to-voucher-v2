@@ -233,3 +233,80 @@ if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
     except Exception as e:
         st.error("❌ Đã xảy ra lỗi:")
         st.code(traceback.format_exc(), language="python")
+
+# ======= TAB 2: SO SÁNH XOÁ TRÙNG =======
+tab1, tab2 = st.tabs(["🧾 Tạo File Hạch Toán", "🔍 So sánh và Xoá dòng trùng"])
+
+with tab2:
+    st.header("🔍 So sánh với File Gốc và Xoá dòng trùng")
+    base_file = st.file_uploader("📂 File gốc (Base)", type=["xlsx"], key="base_file")
+    compare_file = st.file_uploader("📂 File cần so sánh (Xuất từ hệ thống)", type=["xlsx"], key="compare_file")
+
+    def normalize_name(name):
+        try:
+            name = str(name).strip().lower()
+            name = re.sub(r'\s+', ' ', name)
+            return name
+        except:
+            return str(name)
+
+    def normalize_money(val):
+        try:
+            if isinstance(val, str):
+                val = val.replace("=VALUE(", "").replace(")", "").strip()
+            return round(float(val), 0)
+        except:
+            return None
+
+    if st.button("🚫 Xoá dòng trùng theo Tên đối tượng + Số tiền") and base_file and compare_file:
+        try:
+            base_df = pd.read_excel(base_file)
+            compare_df = pd.read_excel(compare_file)
+
+            if "Tên đối tượng" not in base_df.columns or "Phát sinh nợ" not in base_df.columns:
+                st.error("❌ File base thiếu cột 'Tên đối tượng' hoặc 'Phát sinh nợ'")
+            elif "Tên đối tượng" not in compare_df.columns or "Số tiền" not in compare_df.columns:
+                st.error("❌ File cần so sánh thiếu cột 'Tên đối tượng' hoặc 'Số tiền'")
+            else:
+                # Chuẩn hoá dữ liệu
+                base_df["Tên chuẩn"] = base_df["Tên đối tượng"].apply(normalize_name)
+                base_df["Tiền chuẩn"] = base_df["Phát sinh nợ"].apply(normalize_money)
+
+                compare_df["Tên chuẩn"] = compare_df["Tên đối tượng"].apply(normalize_name)
+                compare_df["Tiền chuẩn"] = compare_df["Số tiền"].apply(normalize_money)
+
+                before = len(compare_df)
+                compare_df = compare_df.merge(
+                    base_df[["Tên chuẩn", "Tiền chuẩn"]],
+                    on=["Tên chuẩn", "Tiền chuẩn"],
+                    how="left",
+                    indicator=True
+                )
+                compare_df = compare_df[compare_df["_merge"] == "left_only"]
+                compare_df.drop(columns=["Tên chuẩn", "Tiền chuẩn", "_merge"], inplace=True)
+                after = len(compare_df)
+
+                st.success(f"✅ Đã xoá {before - after} dòng trùng. Còn lại: {after} dòng.")
+
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                    compare_df.to_excel(writer, index=False, sheet_name="Sau Xóa")
+
+                    workbook = writer.book
+                    worksheet = writer.sheets["Sau Xóa"]
+                    header_format = workbook.add_format({
+                        'bold': True, 'bg_color': '#FCE4D6', 'border': 1
+                    })
+
+                    for col_num, col_name in enumerate(compare_df.columns):
+                        worksheet.write(0, col_num, col_name, header_format)
+                        max_width = max([len(str(col_name))] + [len(str(v)) for v in compare_df[col_name]])
+                        worksheet.set_column(col_num, col_num, max_width + 2)
+
+                    worksheet.set_tab_color('#FF9900')
+
+                st.download_button("📥 Tải file đã xoá trùng", data=output.getvalue(), file_name="sau_xoa_trung.xlsx")
+
+        except Exception as e:
+            st.error("❌ Lỗi khi xử lý so sánh")
+            st.code(traceback.format_exc(), language="python")
