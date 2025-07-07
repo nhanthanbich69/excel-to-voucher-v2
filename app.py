@@ -253,14 +253,14 @@ with tab2:
         except:
             return str(name)
 
-    def normalize_money_str(val):
+    def normalize_money(val):
         try:
             if pd.isna(val):
-                return ""
+                return None
             val = str(val).replace("=VALUE(", "").replace(")", "").replace(",", "").strip()
-            return str(int(float(val)))
+            return round(float(val), 0)
         except:
-            return str(val).strip()
+            return None
 
     def normalize_columns(columns):
         return [
@@ -288,7 +288,7 @@ with tab2:
                 st.stop()
 
             base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
-            base_df["Tiền chuẩn"] = base_df["Phát Sinh Nợ"].apply(normalize_money_str)
+            base_df["Tiền chuẩn"] = base_df["Phát Sinh Nợ"].apply(normalize_money)
             base_pairs = set(zip(base_df["Tên chuẩn"], base_df["Tiền chuẩn"]))
 
             zip_in = zipfile.ZipFile(zip_compare_file, 'r')
@@ -313,7 +313,7 @@ with tab2:
 
                                 if "Tên Đối Tượng" in df.columns and "Số Tiền" in df.columns:
                                     df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
-                                    df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money_str)
+                                    df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money)
                                     df["STT Gốc"] = df.index
 
                                     matched = df[df[["Tên chuẩn", "Tiền chuẩn"]].apply(tuple, axis=1).isin(base_pairs)]
@@ -379,13 +379,14 @@ with tab2:
 
             if matched_rows_summary:
                 st.markdown("### 🧾 Danh sách chi tiết các dòng đã xoá")
+
                 preview_df = pd.concat(matched_rows_summary, ignore_index=True)
 
                 preview_df["Số Tiền"] = preview_df["Số Tiền"].apply(
-                    lambda x: f"{int(x):,}" if x and str(x).strip().isdigit() else x
+                    lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and not pd.isna(x) else ""
                 )
                 preview_df["Phát Sinh Nợ"] = preview_df["Phát Sinh Nợ"].apply(
-                    lambda x: f"{int(x):,}" if pd.notnull(x) and str(x).replace(",", "").strip().isdigit() else x
+                    lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and not pd.isna(x) else ""
                 )
 
                 st.dataframe(preview_df[["File", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Phát Sinh Nợ"]])
