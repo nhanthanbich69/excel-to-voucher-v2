@@ -136,7 +136,7 @@ with tab1:
                 df = xls.parse(sheet_name)
                 df.columns = [str(col).strip().upper() for col in df.columns]
 
-                if "KHOA/BỘ PHẬN" not in df.columns or "TIỀN MẶT" not in df.columns:
+                if "KHOA/BỘ PHẬN" not in df.columns or "TRẢ THẺ" not in df.columns:  # Chỉnh sửa ở đây
                     logs.append(f"⚠️ Sheet {sheet_name} thiếu cột cần thiết.")
                     continue
 
@@ -145,8 +145,8 @@ with tab1:
                     logs.append(f"⚠️ Sheet {sheet_name} thiếu cột ngày ({date_column})")
                     continue
 
-                df["TIỀN MẶT"] = pd.to_numeric(df["TIỀN MẶT"], errors="coerce")
-                df = df[df["TIỀN MẶT"].notna() & (df["TIỀN MẶT"] != 0)]
+                df["TRẢ THẺ"] = pd.to_numeric(df["TRẢ THẺ"], errors="coerce")  # Thay đổi ở đây
+                df = df[df["TRẢ THẺ"].notna() & (df["TRẢ THẺ"] != 0)]
                 df = df[df[date_column].notna() & (df[date_column] != "-")]
                 df = df[df["HỌ VÀ TÊN"].notna() & (df["HỌ VÀ TÊN"] != "-")]
 
@@ -159,7 +159,7 @@ with tab1:
 
                     for mode in ["PT", "PC"]:
                         is_pt = mode == "PT"
-                        df_mode = cat_df[cat_df["TIỀN MẶT"] > 0] if is_pt else cat_df[cat_df["TIỀN MẶT"] < 0]
+                        df_mode = cat_df[cat_df["TRẢ THẺ"] > 0] if is_pt else cat_df[cat_df["TRẢ THẺ"] < 0]  # Thay đổi ở đây
                         if df_mode.empty:
                             continue
 
@@ -189,7 +189,7 @@ with tab1:
 
                         out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + " " + df_mode["HỌ VÀ TÊN"].apply(format_name)
                         out_df["TK Có (*)"] = "131"
-                        out_df["Số tiền"] = df_mode["TIỀN MẶT"].abs().apply(lambda x: f"=VALUE({x})")
+                        out_df["Số tiền"] = df_mode["TRẢ THẺ"].abs().apply(lambda x: f"=VALUE({x})")  # Thay đổi ở đây
 
                         out_df = out_df.astype(str)
                         out_df = out_df[output_columns]
