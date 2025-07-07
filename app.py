@@ -276,7 +276,6 @@ with tab2:
     ]
 
     def extract_date_from_filename(filename):
-        # Tìm YYYY.MM hoặc YYYY-MM hoặc YYYY_MM
         match = re.search(r'(\d{4})[.\-_](\d{2})', filename)
         if match:
             return f"{match.group(2)}/{match.group(1)}"
@@ -348,8 +347,21 @@ with tab2:
                                                 temp_matched["Ngày"] = extract_date_from_filename(file_name)
                                                 temp_matched["Sheet"] = sheet
                                                 temp_matched["Lý do"] = "Trùng tên + số tiền với file gốc"
+
+                                                # Ghép thêm cột Phát Sinh Nợ gốc (đặt cạnh Số Tiền)
+                                                def find_goc(row):
+                                                    matched_row = base_df[
+                                                        (base_df["Tên chuẩn"] == row["Tên chuẩn"]) &
+                                                        (base_df["Tiền chuẩn"] == row["Tiền chuẩn"])
+                                                    ]
+                                                    return matched_row["Phát Sinh Nợ"].values[0] if not matched_row.empty else None
+
+                                                temp_matched["Phát Sinh Nợ (gốc)"] = temp_matched.apply(find_goc, axis=1)
+
                                                 matched_rows_summary.append(
-                                                    temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Lý do"]]
+                                                    temp_matched[
+                                                        ["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Phát Sinh Nợ (gốc)", "Lý do"]
+                                                    ]
                                                 )
                                                 logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
