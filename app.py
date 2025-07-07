@@ -255,11 +255,7 @@ with tab2:
 
     def normalize_money(val):
         try:
-            if pd.isna(val) or str(val).strip() in ["", "-", "NaN"]:
-                return None
-            val = str(val)
-            val = re.sub(r'[^\d\-]', '', val)  # Xoá mọi ký tự không phải số và dấu trừ
-            return float(val)
+            return pd.to_numeric(val, errors='coerce')
         except:
             return None
 
