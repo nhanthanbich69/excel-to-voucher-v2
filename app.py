@@ -276,7 +276,6 @@ with tab2:
 
     if st.button("🚫 Xoá dòng trùng trong ZIP") and base_file and zip_compare_file:
         try:
-            # Đọc file gốc và chuẩn hóa cột
             base_df = pd.read_excel(base_file)
             base_df.columns = normalize_columns(base_df.columns)
 
@@ -349,7 +348,6 @@ with tab2:
 
                                 df.to_excel(writer, sheet_name=sheet, index=False)
 
-                                # Format đẹp
                                 workbook = writer.book
                                 worksheet = writer.sheets[sheet]
                                 header_format = workbook.add_format({
@@ -383,12 +381,11 @@ with tab2:
                 st.markdown("### 🧾 Danh sách chi tiết các dòng đã xoá")
                 preview_df = pd.concat(matched_rows_summary, ignore_index=True)
 
-                # Format đẹp: số có dấu ngăn cách
                 preview_df["Số Tiền"] = preview_df["Số Tiền"].apply(
-                    lambda x: f"{int(x):,}" if x and x.isdigit() else x
+                    lambda x: f"{int(x):,}" if x and str(x).strip().isdigit() else x
                 )
                 preview_df["Phát Sinh Nợ"] = preview_df["Phát Sinh Nợ"].apply(
-                    lambda x: f"{int(x):,}" if pd.notnull(x) and str(x).replace(",", "").isdigit() else x
+                    lambda x: f"{int(x):,}" if pd.notnull(x) and str(x).replace(",", "").strip().isdigit() else x
                 )
 
                 st.dataframe(preview_df[["File", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Phát Sinh Nợ"]])
