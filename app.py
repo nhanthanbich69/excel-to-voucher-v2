@@ -408,3 +408,50 @@ with tab2:
             data=st.session_state["zip_buffer"],
             file_name="output_cleaned.zip"
         )
+with tab3:
+    st.header("🧹 Làm sạch công thức `=VALUE(...)` trong file Zip Excel")
+
+    zip_uploaded = st.file_uploader("📦 Tải lên file Zip chứa các file Excel cần xử lý", type=["zip"], key="zip_cleaner")
+
+    if zip_uploaded:
+        if st.button("🚀 Làm sạch công thức và tạo lại file Zip"):
+            try:
+                from openpyxl import load_workbook
+                import re
+
+                cleaned_zip = BytesIO()
+
+                with zipfile.ZipFile(zip_uploaded, "r") as zin, zipfile.ZipFile(cleaned_zip, "w") as zout:
+                    for item in zin.infolist():
+                        if item.filename.endswith(".xlsx"):
+                            with zin.open(item.filename) as f:
+                                wb = load_workbook(f, data_only=False)
+                                for sheet in wb.worksheets:
+                                    headers = [cell.value for cell in sheet[1]]
+                                    if "Số tiền" in headers:
+                                        col_idx = headers.index("Số tiền") + 1
+                                        for row in sheet.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
+                                            cell = row[0]
+                                            if cell.data_type == "f" and isinstance(cell.value, str):
+                                                match = re.search(r"=VALUE\(([\d.]+)\)", cell.value)
+                                                if match:
+                                                    cell.value = float(match.group(1))
+                                                    cell.data_type = 'n'
+
+                                temp_output = BytesIO()
+                                wb.save(temp_output)
+                                temp_output.seek(0)
+                                zout.writestr(item.filename, temp_output.read())
+                        else:
+                            zout.writestr(item, zin.read(item.filename))
+
+                st.success("✅ File đã được xử lý thành công!")
+                st.download_button(
+                    "📥 Tải file Zip đã làm sạch",
+                    data=cleaned_zip.getvalue(),
+                    file_name="Cleaned_File.zip"
+                )
+
+            except Exception as e:
+                st.error("❌ Đã xảy ra lỗi:")
+                st.code(traceback.format_exc())
