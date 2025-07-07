@@ -257,7 +257,10 @@ with tab2:
         try:
             if isinstance(val, str):
                 val = val.replace("=VALUE(", "").replace(")", "").strip()
-            return round(float(val), 0)
+            val = float(val)
+            if pd.isna(val):
+                return None
+            return round(val, 0)
         except:
             return None
 
@@ -299,6 +302,7 @@ with tab2:
             progress = st.progress(0, text="🚧 Đang xử lý ZIP...")
             logs = []
             total_removed = 0
+            matched_rows_summary = []
 
             with zipfile.ZipFile(zip_buffer, "w") as zip_out:
                 for idx, file_name in enumerate(zip_namelist):
@@ -319,14 +323,16 @@ with tab2:
                                     removed = len(matched)
                                     total_removed += removed
 
+                                    if not matched.empty:
+                                        logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
+                                        matched_rows_summary.append(
+                                            matched[["STT Gốc", "Tên Đối Tượng", "Số Tiền"]].assign(
+                                                File=file_name, Sheet=sheet
+                                            )
+                                        )
+
                                     df = df[~df.index.isin(matched.index)]
                                     df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)
-
-                                    logs.append(f"### 📄 {file_name} | Sheet: {sheet} 👉 Xoá {removed} dòng trùng")
-                                    if not matched.empty:
-                                        logs.append("| STT | Tên đối tượng | Số tiền |\n|--|--|--|")
-                                        for _, row in matched.iterrows():
-                                            logs.append(f"| {row['STT Gốc']} | {row['Tên Đối Tượng']} | {row['Số Tiền']} |")
 
                                 df.to_excel(writer, sheet_name=sheet, index=False)
 
@@ -357,8 +363,13 @@ with tab2:
             )
 
             if logs:
-                st.markdown("### 📋 Chi tiết xử lý")
+                st.markdown("### 📋 Tóm tắt xử lý")
                 st.markdown("\n".join(logs))
+
+            if matched_rows_summary:
+                st.markdown("### 🧾 Danh sách chi tiết các dòng đã xoá")
+                preview_df = pd.concat(matched_rows_summary, ignore_index=True)
+                st.dataframe(preview_df[["File", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền"]])
 
         except Exception as e:
             st.error("❌ Lỗi khi xử lý ZIP:")
