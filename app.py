@@ -274,6 +274,24 @@ with tab2:
         for c in columns
     ]
 
+    def extract_date_from_filename(filename):
+        match = re.search(r'(\d{2})\.(\d{2})\.xlsx', filename)
+        if match:
+            return f"{match.group(1)}/{match.group(2)}"
+        return ""
+
+    def extract_type_from_path(path):
+        path = path.upper()
+        if "KCB" in path:
+            return "Khám chữa bệnh"
+        elif "THUOC" in path:
+            return "Thuốc"
+        elif "VACCINE" in path:
+            return "Vaccine"
+        elif "THE" in path:
+            return "Thẻ"
+        return "Khác"
+
     if st.button("🚫 Xoá dòng trùng trong ZIP") and base_file and zip_compare_file:
         try:
             base_df = pd.read_excel(base_file)
@@ -322,24 +340,12 @@ with tab2:
 
                                     if not matched.empty:
                                         temp_matched = matched.copy()
-                                        temp_matched["Phát Sinh Nợ"] = temp_matched.apply(
-                                            lambda row: base_df.loc[
-                                                (base_df["Tên chuẩn"] == row["Tên chuẩn"]) &
-                                                (base_df["Tiền chuẩn"] == row["Tiền chuẩn"]),
-                                                "Phát Sinh Nợ"
-                                            ].values[0]
-                                            if any(
-                                                (base_df["Tên chuẩn"] == row["Tên chuẩn"]) &
-                                                (base_df["Tiền chuẩn"] == row["Tiền chuẩn"])
-                                            )
-                                            else None,
-                                            axis=1
-                                        )
-
+                                        temp_matched["Loại"] = extract_type_from_path(file_name)
+                                        temp_matched["Ngày"] = extract_date_from_filename(file_name)
+                                        temp_matched["Sheet"] = sheet
+                                        temp_matched["STT Gốc"] = temp_matched.index
                                         matched_rows_summary.append(
-                                            temp_matched[["STT Gốc", "Tên Đối Tượng", "Số Tiền", "Phát Sinh Nợ"]].assign(
-                                                File=file_name, Sheet=sheet
-                                            )
+                                            temp_matched[["Loại", "Ngày", "Sheet", "STT Gốc", "Tên Đối Tượng"]]
                                         )
                                         logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
@@ -381,15 +387,24 @@ with tab2:
                 st.markdown("### 🧾 Danh sách chi tiết các dòng đã xoá")
 
                 preview_df = pd.concat(matched_rows_summary, ignore_index=True)
+                preview_df.sort_values(by="Ngày", inplace=True)
 
-                preview_df["Số Tiền"] = preview_df["Số Tiền"].apply(
-                    lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and not pd.isna(x) else ""
-                )
-                preview_df["Phát Sinh Nợ"] = preview_df["Phát Sinh Nợ"].apply(
-                    lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and not pd.isna(x) else ""
-                )
+                # Lọc
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    type_filter = st.multiselect("🗂️ Chọn loại", preview_df["Loại"].unique(), default=preview_df["Loại"].unique())
+                with col2:
+                    date_filter = st.multiselect("📅 Chọn ngày", preview_df["Ngày"].unique(), default=preview_df["Ngày"].unique())
+                with col3:
+                    name_filter = st.multiselect("🧑‍⚕️ Chọn tên", preview_df["Tên Đối Tượng"].unique(), default=preview_df["Tên Đối Tượng"].unique())
 
-                st.dataframe(preview_df[["File", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Phát Sinh Nợ"]])
+                filtered_df = preview_df[
+                    preview_df["Loại"].isin(type_filter) &
+                    preview_df["Ngày"].isin(date_filter) &
+                    preview_df["Tên Đối Tượng"].isin(name_filter)
+                ]
+
+                st.dataframe(filtered_df, use_container_width=True)
 
         except Exception as e:
             st.error("❌ Lỗi khi xử lý ZIP:")
