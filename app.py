@@ -417,43 +417,55 @@ with tab2:
                 st.error("❌ Lỗi khi xử lý ZIP:")
                 st.code(traceback.format_exc(), language="python")
 
-    # 👇 LOG và BẢNG CHI TIẾT
-    if "logs" in st.session_state:
-        st.subheader("📜 Log chi tiết đã xử lý")
-        for log in st.session_state["logs"]:
-            st.markdown(log)
+# 👇 LOG và BẢNG CHI TIẾT
+if "logs" in st.session_state:
+    st.subheader("📜 Log chi tiết đã xử lý")
+    for log in st.session_state["logs"]:
+        st.markdown(log)
 
-    if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
-        st.subheader("📊 Dòng trùng đã xoá (Tên + Ngày):")
-        combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
-        st.dataframe(combined_df)
+if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
+    st.subheader("📊 Dòng trùng đã xoá (Tên + Ngày):")
+    combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
+    st.dataframe(combined_df)
 
-    if "zip_buffer" in st.session_state and st.session_state["zip_ready"]:
-        st.download_button(
-            "📥 Tải file ZIP đã xoá dòng trùng",
-            data=st.session_state["zip_buffer"],
-            file_name="output_cleaned.zip"
-        )
-    if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
-        st.subheader("📊 Dòng trùng đã xoá (Tên + Ngày):")
-        combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
-        st.dataframe(combined_df)
+    # 👉 Ghép với file gốc để lấy thêm "Phát Sinh Nợ"
+    base_df = pd.read_excel(base_file)
+    base_df.columns = normalize_columns(base_df.columns)
+    base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
+    base_df["Ngày chuẩn"] = base_df["Ngày Hạch Toán"].apply(normalize_date)
+    base_df["Tiền Base"] = pd.to_numeric(base_df["Phát Sinh Nợ"], errors="coerce")
 
-        # 👇 Tổng hợp theo Tên Đối Tượng
-        st.subheader("📌 Tổng hợp theo Tên Đối Tượng")
+    combined_df["Tên chuẩn"] = combined_df["Tên Đối Tượng"].apply(normalize_name)
+    combined_df["Ngày chuẩn"] = combined_df["Ngày Hạch Toán (*)"].apply(normalize_date)
 
-        summary = merged.groupby("Tên Đối Tượng").agg({
-            "Loại": lambda x: ", ".join(sorted(set(x))),
-            "Ngày Hạch Toán (*)": lambda x: ", ".join(sorted(set(x))),
-            "Số Tiền": "sum",
-            "Tiền Base": "sum",
-            "STT Gốc": "count"
-        }).reset_index().rename(columns={
-            "Loại": "Loại liên quan",
-            "Ngày Hạch Toán (*)": "Các ngày hạch toán",
-            "Số Tiền": "Tổng tiền đã xoá (ZIP)",
-            "Tiền Base": "Tổng Phát Sinh Nợ (Gốc)",
-            "STT Gốc": "Số dòng bị xoá"
-        })
+    merged = combined_df.merge(
+        base_df[["Tên chuẩn", "Ngày chuẩn", "Tiền Base"]],
+        on=["Tên chuẩn", "Ngày chuẩn"],
+        how="left"
+    )
 
-        st.dataframe(summary)
+    # 👇 Tổng hợp
+    st.subheader("📌 Tổng hợp theo Tên Đối Tượng")
+    summary = merged.groupby("Tên Đối Tượng").agg({
+        "Loại": lambda x: ", ".join(sorted(set(x))),
+        "Ngày Hạch Toán (*)": lambda x: ", ".join(sorted(set(x))),
+        "Số Tiền": "sum",
+        "Tiền Base": "sum",
+        "STT Gốc": "count"
+    }).reset_index().rename(columns={
+        "Loại": "Loại liên quan",
+        "Ngày Hạch Toán (*)": "Các ngày hạch toán",
+        "Số Tiền": "Tổng tiền đã xoá (ZIP)",
+        "Tiền Base": "Tổng Phát Sinh Nợ (Gốc)",
+        "STT Gốc": "Số dòng bị xoá"
+    })
+
+    st.dataframe(summary)
+
+# 👇 Button tải file
+if "zip_buffer" in st.session_state and st.session_state["zip_ready"]:
+    st.download_button(
+        "📥 Tải file ZIP đã xoá dòng trùng",
+        data=st.session_state["zip_buffer"],
+        file_name="output_cleaned.zip"
+    )
