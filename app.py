@@ -276,9 +276,14 @@ with tab2:
         for c in columns
     ]
 
+    def extract_month_info(filename):
+        match = re.search(r'(\d{4})[\.\-_ ]?(0[1-9]|1[0-2])', filename)
+        if match:
+            return f"{match.group(2)}_{match.group(1)}"  # VD: 01_2024
+        return "unknown"
+
     if st.button("🚫 Xoá dòng trùng trong ZIP") and base_file and zip_compare_file:
         try:
-            # Đọc file gốc và chuẩn hóa cột
             base_df = pd.read_excel(base_file)
             base_df.columns = normalize_columns(base_df.columns)
 
@@ -325,10 +330,18 @@ with tab2:
 
                                     if not matched.empty:
                                         logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
+
+                                        matched = matched.merge(
+                                            base_df[["Tên chuẩn", "Phát Sinh Nợ"]],
+                                            on="Tên chuẩn", how="left"
+                                        )
+                                        matched["File"] = file_name
+                                        matched["Sheet"] = sheet
                                         matched_rows_summary.append(
-                                            matched[["STT Gốc", "Tên Đối Tượng", "Số Tiền"]].assign(
-                                                File=file_name, Sheet=sheet
-                                            )
+                                            matched[[
+                                                "File", "Sheet", "STT Gốc", "Tên Đối Tượng",
+                                                "Số Tiền", "Tiền chuẩn", "Phát Sinh Nợ"
+                                            ]]
                                         )
 
                                     df = df[~df.index.isin(matched.index)]
@@ -368,8 +381,34 @@ with tab2:
 
             if matched_rows_summary:
                 st.markdown("### 🧾 Danh sách chi tiết các dòng đã xoá")
+
                 preview_df = pd.concat(matched_rows_summary, ignore_index=True)
-                st.dataframe(preview_df[["File", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền"]])
+                preview_df["Số Tiền"] = preview_df["Số Tiền"].apply(lambda x: f"{x:,.0f}")
+                preview_df["Phát Sinh Nợ"] = preview_df["Phát Sinh Nợ"].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
+                st.dataframe(preview_df, use_container_width=True)
+
+                excel_buffer = BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
+                    preview_df.to_excel(writer, index=False, sheet_name="Tóm tắt đã xoá")
+                    workbook = writer.book
+                    worksheet = writer.sheets["Tóm tắt đã xoá"]
+                    header_format = workbook.add_format({
+                        'bold': True, 'bg_color': '#DAEEF3', 'border': 1
+                    })
+                    for col_num, col_name in enumerate(preview_df.columns):
+                        worksheet.write(0, col_num, col_name, header_format)
+                        max_width = max([len(str(col_name))] + [len(str(v)) for v in preview_df[col_name]])
+                        worksheet.set_column(col_num, col_num, max_width + 2)
+                    worksheet.set_tab_color("#33CCCC")
+
+                excel_buffer.seek(0)
+                month_suffix = extract_month_info(zip_compare_file.name or base_file.name)
+                st.download_button(
+                    label="📄 Tải file Excel chi tiết xử lý",
+                    data=excel_buffer.getvalue(),
+                    file_name=f"chi_tiet_xu_ly_T{month_suffix}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
         except Exception as e:
             st.error("❌ Lỗi khi xử lý ZIP:")
