@@ -253,17 +253,6 @@ with tab2:
         except:
             return str(name)
 
-    def normalize_money(val):
-        try:
-            if pd.isna(val) or str(val).strip() in ["", "-", "NaN"]:
-                return None
-            val = str(val).strip()
-            if val.upper().startswith("=VALUE(") and val.endswith(")"):
-                val = val[7:-1]
-            return float(val.replace(",", "").strip())
-        except:
-            return None
-
     def normalize_date(date_val):
         try:
             if pd.isna(date_val) or str(date_val).strip() in ["", "-", "NaT", "NaN"]:
@@ -298,13 +287,13 @@ with tab2:
             return "Thẻ"
         return "Khác"
 
-    if st.button("🚫 Xoá dòng trùng trong ZIP"):
+    if st.button("🚫 Xoá dòng trùng theo Tên + Ngày"):
         if base_file and zip_compare_file:
             try:
                 base_df = pd.read_excel(base_file)
                 base_df.columns = normalize_columns(base_df.columns)
 
-                required_cols = {"Tên Đối Tượng", "Phát Sinh Nợ", "Ngày Hạch Toán"}
+                required_cols = {"Tên Đối Tượng", "Ngày Hạch Toán"}
                 missing_cols = required_cols - set(base_df.columns)
 
                 if missing_cols:
@@ -313,11 +302,9 @@ with tab2:
                     st.stop()
 
                 base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
-                base_df["Tiền chuẩn"] = base_df["Phát Sinh Nợ"].apply(normalize_money)
                 base_df["Ngày chuẩn"] = base_df["Ngày Hạch Toán"].apply(normalize_date)
-                base_df = base_df[base_df["Tiền chuẩn"].notna() & (base_df["Tiền chuẩn"] != 0) & base_df["Ngày chuẩn"].notna()]
-                base_triplets = set(zip(base_df["Tên chuẩn"], base_df["Tiền chuẩn"], base_df["Ngày chuẩn"]))
-                base_names_set = set(base_df["Tên chuẩn"])
+                base_df = base_df[base_df["Tên chuẩn"].notna() & base_df["Ngày chuẩn"].notna()]
+                base_pairs = set(zip(base_df["Tên chuẩn"], base_df["Ngày chuẩn"]))
 
                 zip_in = zipfile.ZipFile(zip_compare_file, 'r')
                 zip_namelist = [fn for fn in zip_in.namelist() if fn.lower().endswith(".xlsx")]
@@ -328,7 +315,6 @@ with tab2:
                 logs = []
                 total_removed = 0
                 matched_rows_summary = []
-                ten_khac_tien_rows = []
 
                 with zipfile.ZipFile(zip_buffer, "w") as zip_out:
                     for idx, file_name in enumerate(zip_namelist):
@@ -340,26 +326,16 @@ with tab2:
                                     df = pd.read_excel(xls, sheet_name=sheet)
                                     df.columns = normalize_columns(df.columns)
 
-                                    if "Tên Đối Tượng" in df.columns and "Số Tiền" in df.columns and "Ngày Hạch Toán (*)" in df.columns:
+                                    if "Tên Đối Tượng" in df.columns and "Ngày Hạch Toán (*)" in df.columns:
                                         df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
-                                        df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money)
                                         df["Ngày chuẩn"] = df["Ngày Hạch Toán (*)"].apply(normalize_date)
-                                        df = df[df["Tiền chuẩn"].notna() & (df["Tiền chuẩn"] != 0) & df["Ngày chuẩn"].notna()]
                                         df["STT Gốc"] = df.index
 
-                                        # Gán trạng thái
-                                        def get_status(row):
-                                            key = (row["Tên chuẩn"], row["Tiền chuẩn"], row["Ngày chuẩn"])
-                                            if key in base_triplets:
-                                                return "Trùng hoàn toàn"
-                                            elif row["Tên chuẩn"] in base_names_set:
-                                                return "Tên trùng, tiền/ngày khác"
-                                            else:
-                                                return "Không trùng"
+                                        df["Trạng thái"] = df.apply(
+                                            lambda row: "Trùng hoàn toàn" if (row["Tên chuẩn"], row["Ngày chuẩn"]) in base_pairs else "Không trùng",
+                                            axis=1
+                                        )
 
-                                        df["Trạng thái"] = df.apply(get_status, axis=1)
-
-                                        # Xoá trùng hoàn toàn
                                         matched = df[df["Trạng thái"] == "Trùng hoàn toàn"]
                                         removed = len(matched)
                                         total_removed += removed
@@ -369,20 +345,12 @@ with tab2:
                                             temp_matched["Loại"] = extract_type_from_path(file_name)
                                             temp_matched["Sheet"] = sheet
                                             matched_rows_summary.append(
-                                                temp_matched[["Loại", "Sheet", "STT Gốc", "Tên Đối Tượng", "Số Tiền", "Ngày Hạch Toán (*)"]]
+                                                temp_matched[["Loại", "Sheet", "STT Gốc", "Tên Đối Tượng", "Ngày Hạch Toán (*)"]]
                                             )
                                             logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
-                                        ten_khac = df[df["Trạng thái"] == "Tên trùng, tiền/ngày khác"].copy()
-                                        if not ten_khac.empty:
-                                            ten_khac["File"] = file_name
-                                            ten_khac["Sheet"] = sheet
-                                            ten_khac_tien_rows.append(
-                                                ten_khac[["Tên Đối Tượng", "Số Tiền", "Ngày Hạch Toán (*)", "File", "Sheet"]]
-                                            )
-
                                         df = df[df["Trạng thái"] != "Trùng hoàn toàn"]
-                                        df.drop(columns=["Tên chuẩn", "Tiền chuẩn", "Ngày chuẩn"], inplace=True)
+                                        df.drop(columns=["Tên chuẩn", "Ngày chuẩn", "Trạng thái"], inplace=True)
 
                                     df.to_excel(writer, sheet_name=sheet, index=False)
 
@@ -405,7 +373,6 @@ with tab2:
                         progress.progress((idx + 1) / total_files, text=f"✅ Đã xử lý {idx + 1}/{total_files} file")
 
                 st.session_state["matched_rows_summary"] = matched_rows_summary
-                st.session_state["ten_khac_tien_rows"] = ten_khac_tien_rows
                 st.session_state["logs"] = logs
                 st.session_state["zip_buffer"] = zip_buffer.getvalue()
                 st.session_state["zip_ready"] = True
@@ -415,3 +382,4 @@ with tab2:
             except Exception as e:
                 st.error("❌ Lỗi khi xử lý ZIP:")
                 st.code(traceback.format_exc(), language="python")
+
