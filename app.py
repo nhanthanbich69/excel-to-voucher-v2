@@ -115,7 +115,7 @@ with tab1:
     if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
         try:
             xls = pd.ExcelFile(uploaded_file)
-            st.success(f"📥 Đọc thành công file {uploaded_file.name} với {len(xls.sheet_names)} sheet.")
+            st.success(f"📥 Đã đọc thành công file {uploaded_file.name} với {len(xls.sheet_names)} sheet. Đang xử lý, vui lòng đợi...")
             data_by_category = {k: {} for k in category_info}
             logs = []
 
