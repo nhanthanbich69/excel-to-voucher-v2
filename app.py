@@ -375,7 +375,7 @@ with tab2:
 
                                         # Giữ lại các dòng không bị xoá
                                         df = df[df["Trạng thái"] != "Trùng hoàn toàn"]
-                                        df.drop(columns=["Tên chuẩn", "Tiền chuẩn", "Trạng thái"], inplace=True)
+                                        df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)  # ✅ GIỮ LẠI "Trạng thái"
 
                                     df.to_excel(writer, sheet_name=sheet, index=False)
 
@@ -408,71 +408,3 @@ with tab2:
             except Exception as e:
                 st.error("❌ Lỗi khi xử lý ZIP:")
                 st.code(traceback.format_exc(), language="python")
-
-    if st.session_state.get("zip_ready"):
-        logs = st.session_state.get("logs", [])
-        matched_rows_summary = st.session_state.get("matched_rows_summary", [])
-        ten_khac_tien_rows = st.session_state.get("ten_khac_tien_rows", [])
-        zip_data = st.session_state["zip_buffer"]
-
-        st.download_button(
-            "📥 Tải file ZIP sau khi xoá trùng",
-            data=zip_data,
-            file_name="sau_xoa_trung.zip"
-        )
-
-        if logs:
-            st.markdown("### 📋 Tóm tắt xử lý")
-            st.markdown("\n".join(logs))
-
-        if matched_rows_summary:
-            st.markdown("### 🧾 Danh sách chi tiết các dòng đã xoá")
-            preview_df = pd.concat(matched_rows_summary, ignore_index=True)
-            preview_df.sort_values(by="Ngày", inplace=True)
-
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                type_options = sorted(preview_df["Loại"].dropna().unique())
-                type_filter = st.selectbox("🗂️ Loại", ["(Tất cả)"] + type_options)
-            with col2:
-                date_options = sorted(preview_df["Ngày"].dropna().unique())
-                date_filter = st.selectbox("📅 Ngày", ["(Tất cả)"] + date_options)
-            with col3:
-                sheet_options = sorted(preview_df["Sheet"].dropna().unique())
-                sheet_filter = st.selectbox("📄 Sheet", ["(Tất cả)"] + sheet_options)
-            with col4:
-                name_options = sorted(preview_df["Tên Đối Tượng"].dropna().unique())
-                name_filter = st.selectbox("🧑‍⚕️ Tên", ["(Tất cả)"] + name_options)
-
-            filtered_df = preview_df.copy()
-            if type_filter != "(Tất cả)":
-                filtered_df = filtered_df[filtered_df["Loại"] == type_filter]
-            if date_filter != "(Tất cả)":
-                filtered_df = filtered_df[filtered_df["Ngày"] == date_filter]
-            if sheet_filter != "(Tất cả)":
-                filtered_df = filtered_df[filtered_df["Sheet"] == sheet_filter]
-            if name_filter != "(Tất cả)":
-                filtered_df = filtered_df[filtered_df["Tên Đối Tượng"] == name_filter]
-
-            st.dataframe(filtered_df, use_container_width=True)
-
-        if ten_khac_tien_rows:
-            st.markdown("### ⚠️ Danh sách Tên trùng nhưng Tiền khác")
-            khac_df = pd.concat(ten_khac_tien_rows, ignore_index=True)
-            khac_df.sort_values(by=["Tên Đối Tượng", "File", "Sheet"], inplace=True)
-
-            col1, col2 = st.columns(2)
-            with col1:
-                name_opts = sorted(khac_df["Tên Đối Tượng"].dropna().unique())
-                name_filter = st.selectbox("🧑‍⚕️ Tên", ["(Tất cả)"] + name_opts, key="ten_khac_ten")
-            with col2:
-                file_opts = sorted(khac_df["File"].dropna().unique())
-                file_filter = st.selectbox("📄 File", ["(Tất cả)"] + file_opts, key="ten_khac_file")
-
-            filtered_khac = khac_df.copy()
-            if name_filter != "(Tất cả)":
-                filtered_khac = filtered_khac[filtered_khac["Tên Đối Tượng"] == name_filter]
-            if file_filter != "(Tất cả)":
-                filtered_khac = filtered_khac[filtered_khac["File"] == file_filter]
-
-            st.dataframe(filtered_khac, use_container_width=True)
