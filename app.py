@@ -184,7 +184,7 @@ with tab1:
 
             if all(not sheets for sheets in data_by_category.values()):
                 st.warning("⚠️ Không có dữ liệu hợp lệ sau khi lọc.")
-                return
+                st.stop()
 
             # Ghi file tạm thời
             zip_buffer = BytesIO()
