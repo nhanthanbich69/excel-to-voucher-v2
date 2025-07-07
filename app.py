@@ -379,19 +379,24 @@ with tab2:
 
                 st.success(f"🎉 Đã xoá tổng cộng {total_removed} dòng trùng trong {total_files} file Excel.")
 
-        # 👇 Hiển thị bảng và log sau khi xử lý
-        if "logs" in st.session_state:
-            st.subheader("📜 Log chi tiết đã xử lý")
-            for log in st.session_state["logs"]:
-                st.markdown(log)
+            except Exception as e:
+                st.error("❌ Lỗi khi xử lý ZIP:")
+                st.code(traceback.format_exc(), language="python")
 
-        if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
-            st.subheader("📊 Dòng trùng đã xoá")
-            combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
-            st.dataframe(combined_df)
+    # 👇 LOG và BẢNG CHI TIẾT
+    if "logs" in st.session_state:
+        st.subheader("📜 Log chi tiết đã xử lý")
+        for log in st.session_state["logs"]:
+            st.markdown(log)
 
-        st.download_button("📥 Tải file ZIP đã xoá dòng trùng", data=st.session_state["zip_buffer"], file_name="output_cleaned.zip")
+    if "matched_rows_summary" in st.session_state and st.session_state["matched_rows_summary"]:
+        st.subheader("📊 Dòng trùng đã xoá")
+        combined_df = pd.concat(st.session_state["matched_rows_summary"], ignore_index=True)
+        st.dataframe(combined_df)
 
-    except Exception as e:
-        st.error("❌ Lỗi khi xử lý ZIP:")
-        st.code(traceback.format_exc(), language="python")
+    if "zip_buffer" in st.session_state and st.session_state["zip_ready"]:
+        st.download_button(
+            "📥 Tải file ZIP đã xoá dòng trùng",
+            data=st.session_state["zip_buffer"],
+            file_name="output_cleaned.zip"
+        )
