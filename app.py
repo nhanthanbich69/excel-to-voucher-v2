@@ -303,7 +303,7 @@ with tab2:
 
                 if missing_cols:
                     st.error(f"""❌ File gốc **{base_file.name}** thiếu cột: {', '.join(missing_cols)}
-    🔍 Các cột hiện có: {', '.join(base_df.columns)}""")
+🔍 Các cột hiện có: {', '.join(base_df.columns)}""")
                     st.stop()
 
                 base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
@@ -373,7 +373,7 @@ with tab2:
 
                         progress.progress((idx + 1) / total_files, text=f"✅ Đã xử lý {idx + 1}/{total_files} file")
 
-                # Lưu vào session_state
+                # Lưu kết quả
                 st.session_state["matched_rows_summary"] = matched_rows_summary
                 st.session_state["logs"] = logs
                 st.session_state["zip_buffer"] = zip_buffer.getvalue()
@@ -385,7 +385,6 @@ with tab2:
                 st.error("❌ Lỗi khi xử lý ZIP:")
                 st.code(traceback.format_exc(), language="python")
 
-    # Hiển thị kết quả nếu có trong session
     if st.session_state.get("zip_ready") and "matched_rows_summary" in st.session_state:
         logs = st.session_state["logs"]
         matched_rows_summary = st.session_state["matched_rows_summary"]
@@ -406,8 +405,7 @@ with tab2:
             preview_df = pd.concat(matched_rows_summary, ignore_index=True)
             preview_df.sort_values(by="Ngày", inplace=True)
 
-            # Giao diện lọc
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 type_options = sorted(preview_df["Loại"].dropna().unique())
                 type_filter = st.selectbox("🗂️ Loại", ["(Tất cả)"] + type_options)
@@ -415,6 +413,9 @@ with tab2:
                 date_options = sorted(preview_df["Ngày"].dropna().unique())
                 date_filter = st.selectbox("📅 Ngày", ["(Tất cả)"] + date_options)
             with col3:
+                sheet_options = sorted(preview_df["Sheet"].dropna().unique())
+                sheet_filter = st.selectbox("📄 Sheet", ["(Tất cả)"] + sheet_options)
+            with col4:
                 name_options = sorted(preview_df["Tên Đối Tượng"].dropna().unique())
                 name_filter = st.selectbox("🧑‍⚕️ Tên", ["(Tất cả)"] + name_options)
 
@@ -423,6 +424,8 @@ with tab2:
                 filtered_df = filtered_df[filtered_df["Loại"] == type_filter]
             if date_filter != "(Tất cả)":
                 filtered_df = filtered_df[filtered_df["Ngày"] == date_filter]
+            if sheet_filter != "(Tất cả)":
+                filtered_df = filtered_df[filtered_df["Sheet"] == sheet_filter]
             if name_filter != "(Tất cả)":
                 filtered_df = filtered_df[filtered_df["Tên Đối Tượng"] == name_filter]
 
