@@ -253,16 +253,14 @@ with tab2:
         except:
             return str(name)
 
-    def normalize_money(val):
+    def clean_money(val):
         try:
-            if pd.isna(val) or str(val).strip() in ["", "-", "NaN"]:
-                return None
             val = str(val).strip()
             if val.upper().startswith("=VALUE(") and val.endswith(")"):
                 val = val[7:-1]
-            return float(val.replace(",", "").strip())
+            return val
         except:
-            return None
+            return str(val)
 
     def normalize_columns(columns):
         return [
@@ -309,8 +307,8 @@ with tab2:
                     st.stop()
 
                 base_df["Tên chuẩn"] = base_df["Tên Đối Tượng"].apply(normalize_name)
-                base_df["Tiền chuẩn"] = base_df["Phát Sinh Nợ"].apply(normalize_money)
-                base_df = base_df[base_df["Tiền chuẩn"].notna() & (base_df["Tiền chuẩn"] != 0)]
+                base_df["Tiền chuẩn"] = base_df["Phát Sinh Nợ"].apply(clean_money)
+                base_df = base_df[base_df["Tiền chuẩn"].notna() & (base_df["Tiền chuẩn"] != "")]
                 base_pairs = set(zip(base_df["Tên chuẩn"], base_df["Tiền chuẩn"]))
                 base_names_set = set(base_df["Tên chuẩn"])
 
@@ -337,23 +335,20 @@ with tab2:
 
                                     if "Tên Đối Tượng" in df.columns and "Số Tiền" in df.columns:
                                         df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
-                                        df["Tiền chuẩn"] = df["Số Tiền"].apply(normalize_money)
-                                        df = df[df["Tiền chuẩn"].notna() & (df["Tiền chuẩn"] != 0)]
+                                        df["Tiền chuẩn"] = df["Số Tiền"].apply(clean_money)
+                                        df = df[df["Tiền chuẩn"].notna() & (df["Tiền chuẩn"] != "")]
                                         df["STT Gốc"] = df.index
 
-                                        # Tách trạng thái
                                         df["Trạng thái"] = df.apply(
                                             lambda row: "Trùng hoàn toàn" if (row["Tên chuẩn"], row["Tiền chuẩn"]) in base_pairs
                                             else ("Tên trùng, tiền khác" if row["Tên chuẩn"] in base_names_set else "Không trùng"),
                                             axis=1
                                         )
 
-                                        # Dòng trùng hẳn → xoá
                                         matched = df[df["Trạng thái"] == "Trùng hoàn toàn"]
                                         removed = len(matched)
                                         total_removed += removed
 
-                                        # Lưu log
                                         if not matched.empty:
                                             temp_matched = matched.copy()
                                             temp_matched["Loại"] = extract_type_from_path(file_name)
@@ -364,7 +359,6 @@ with tab2:
                                             )
                                             logs.append(f"- 📄 `{file_name}` | Sheet: `{sheet}` 👉 Đã xoá {removed} dòng")
 
-                                        # Lưu dòng "Tên trùng, tiền khác"
                                         ten_khac = df[df["Trạng thái"] == "Tên trùng, tiền khác"].copy()
                                         if not ten_khac.empty:
                                             ten_khac["File"] = file_name
@@ -373,9 +367,8 @@ with tab2:
                                                 ten_khac[["Tên Đối Tượng", "Số Tiền", "File", "Sheet"]]
                                             )
 
-                                        # Giữ lại các dòng không bị xoá
                                         df = df[df["Trạng thái"] != "Trùng hoàn toàn"]
-                                        df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)  # ✅ GIỮ LẠI "Trạng thái"
+                                        df.drop(columns=["Tên chuẩn", "Tiền chuẩn"], inplace=True)
 
                                     df.to_excel(writer, sheet_name=sheet, index=False)
 
