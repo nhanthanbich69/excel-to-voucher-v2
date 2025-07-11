@@ -81,8 +81,6 @@ with tab1:
                     return "VACCINE"
                 elif "THUỐC" in content_val:
                     return "THUOC"
-                elif "THẺ" in content_val:
-                    return "THE"
         except:
             pass
         return "KCB"
@@ -91,7 +89,6 @@ with tab1:
         "KCB": {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
         "THUOC": {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
         "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Tiêm vacxin"},
-        "THE": {"ma": "KHACHLE04", "ten": "Khách hàng lẻ - Trả thẻ"}
     }
 
     output_columns = [
