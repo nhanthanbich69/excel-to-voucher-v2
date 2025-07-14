@@ -10,12 +10,7 @@ from collections import defaultdict
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
-tabs = st.tabs([
-    "🧾 Tạo File Hạch Toán", 
-    "🔍 So sánh và Xoá dòng trùng", 
-    "📊 File tuỳ chỉnh (Check thủ công)", 
-    "📁 Tab 4 (Thêm chức năng gì đó)"
-])
+tab1, tab2, tab3, tab4 = st.tabs(["🧾 Tạo File Hạch Toán", "🔍 So sánh và Xoá dòng trùng", "📊 File tuỳ chỉnh (Check thủ công)", "📐 So sánh Số tiền giữa các file"])
 
 with tab1:
     uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
@@ -508,8 +503,6 @@ with tab3:
         except Exception as e:
             st.error("❌ Lỗi khi xử lý file Zip:")
             st.code(traceback.format_exc(), language="python")
-
-tab4 = st.tabs(["📐 So sánh Số tiền giữa các file"])[0]
 
 with tab4:
     st.subheader("📦 Tải file Zip đã xử lý để so sánh 'Số tiền'")
