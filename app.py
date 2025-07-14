@@ -249,15 +249,6 @@ with tab2:
     def normalize_columns(columns):
         return [str(c).strip().lower() for c in columns]
 
-    def extract_output_name(path):
-        name = path.upper()
-        parts = name.split("/")
-        mode = "PT" if "PT" in name else "PC"
-        for cat in ["KCB", "THUOC", "VACCINE", "THE"]:
-            if cat in name:
-                return f"{mode}_{cat}"
-        return mode
-
     if st.button("🚫 Xoá dòng trùng theo Tên + Ngày + Số Tiền"):
         if base_file and zip_compare_file:
             try:
@@ -313,6 +304,11 @@ with tab2:
                                             logs.append(f"- `{fname}` | Sheet `{sheet}`: ❌ Xoá {removed_count} dòng")
 
                                         df = df[~df["__dup__"]]
+
+                                    # Đổi tên "diễn giải lý do thu" thành "diễn giải"
+                                    for col in df.columns:
+                                        if col.strip().lower() == "diễn giải lý do thu":
+                                            df.rename(columns={col: "diễn giải"}, inplace=True)
 
                                     # Xoá toàn bộ cột phụ
                                     df.drop(columns=[c for c in df.columns if c.startswith("__") or "stt gốc" in c], errors="ignore", inplace=True)
