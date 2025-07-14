@@ -503,3 +503,53 @@ with tab3:
         except Exception as e:
             st.error("❌ Lỗi khi xử lý file Zip:")
             st.code(traceback.format_exc(), language="python")
+
+tab4 = st.tabs(["📐 So sánh Số tiền giữa các file"])[0]
+
+with tab4:
+    st.subheader("📦 Tải file Zip đã xử lý để so sánh 'Số tiền'")
+    uploaded_zip = st.file_uploader("🔍 Chọn file ZIP đầu ra", type=["zip"], key="zip_compare_sotien")
+
+    if uploaded_zip:
+        try:
+            zip_bytes = BytesIO(uploaded_zip.read())
+            zip_file = zipfile.ZipFile(zip_bytes)
+            all_records = []
+
+            for file in zip_file.namelist():
+                if file.endswith(".xlsx"):
+                    with zip_file.open(file) as f:
+                        xl = pd.ExcelFile(f)
+                        for sheet in xl.sheet_names:
+                            df = xl.parse(sheet)
+                            df.columns = [str(c).strip() for c in df.columns]
+                            if not {"Số tiền", "Họ và tên", "Số chứng từ (*)", "Ngày chứng từ (*)"}.issubset(set(df.columns)):
+                                continue
+                            df["TÊN FILE"] = file
+                            df["TÊN SHEET"] = sheet
+                            df["KEY"] = df["Họ và tên"].astype(str).str.strip() + "_" + df["Số chứng từ (*)"].astype(str)
+                            df["SỐ TIỀN GỐC"] = df["Số tiền"].astype(str).str.replace("=VALUE(", "", regex=False).str.replace(")", "", regex=False).astype(float)
+                            all_records.append(df[["KEY", "SỐ TIỀN GỐC", "TÊN FILE", "TÊN SHEET"]])
+
+            if not all_records:
+                st.warning("Không tìm thấy dữ liệu phù hợp để so sánh.")
+            else:
+                full_df = pd.concat(all_records)
+                pivot_df = full_df.pivot_table(index="KEY", columns="TÊN FILE", values="SỐ TIỀN GỐC", aggfunc="first").reset_index()
+
+                # Tìm dòng có sự khác biệt
+                diff_df = pivot_df.drop("KEY", axis=1).apply(lambda row: len(set(row.dropna())) > 1, axis=1)
+                result_df = pivot_df[diff_df]
+
+                st.markdown("### 📊 Các dòng có 'Số tiền' khác nhau giữa các file:")
+                st.dataframe(result_df, use_container_width=True)
+
+                download = st.download_button(
+                    "⬇️ Tải kết quả so sánh (Excel)",
+                    data=result_df.to_excel(index=False, engine="xlsxwriter"),
+                    file_name="So_sanh_So_tien.xlsx"
+                )
+
+        except Exception as e:
+            st.error("❌ Đã xảy ra lỗi khi xử lý file ZIP:")
+            st.code(traceback.format_exc(), language="python")
