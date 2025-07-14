@@ -9,10 +9,11 @@ from openpyxl import load_workbook
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
 
-tab1, _, _ = st.tabs([
+tab1, tab2, _, _ = st.tabs([
     "🧾 Tạo File Hạch Toán", 
     "🔍 So sánh và Xoá dòng trùng",
-    "📊 File tuỳ chỉnh (Check thủ công)"
+    "📊 File tuỳ chỉnh (Check thủ công)",
+    "📂 Gộp File Theo Tháng"
 ])
 
 with tab1:
@@ -182,4 +183,60 @@ with tab1:
 
         except Exception as e:
             st.error("❌ Lỗi xử lý:")
+            st.code(traceback.format_exc(), language="python")
+
+with tab2:
+    st.header("🔍 So sánh hai file Excel đầu ra (cột 'Số tiền')")
+
+    file_1 = st.file_uploader("📂 File 1", type=["xlsx", "xls"], key="compare1")
+    file_2 = st.file_uploader("📂 File 2", type=["xlsx", "xls"], key="compare2")
+
+    def read_all_sheets(file):
+        xls = pd.ExcelFile(file)
+        df_all = pd.DataFrame()
+        for sheet in xls.sheet_names:
+            df = xls.parse(sheet)
+            df["SHEET"] = sheet
+            df_all = pd.concat([df_all, df], ignore_index=True)
+        return df_all
+
+    if file_1 and file_2:
+        try:
+            df1 = read_all_sheets(file_1)
+            df2 = read_all_sheets(file_2)
+
+            def normalize(df):
+                df = df.copy()
+                for col in ["Ngày chứng từ (*)", "Số chứng từ (*)", "Tên đối tượng", "Số tiền"]:
+                    if col not in df.columns:
+                        raise Exception(f"Thiếu cột '{col}' trong 1 trong 2 file")
+                df["KEY"] = df["Ngày chứng từ (*)"].astype(str).str.strip() + "_" + \
+                            df["Số chứng từ (*)"].astype(str).str.strip() + "_" + \
+                            df["Tên đối tượng"].astype(str).str.strip()
+                df["Số tiền"] = df["Số tiền"].astype(str).str.replace("=VALUE(", "").str.replace(")", "").astype(float)
+                return df[["KEY", "Số tiền"]]
+
+            df1_norm = normalize(df1).rename(columns={"Số tiền": "Số tiền 1"})
+            df2_norm = normalize(df2).rename(columns={"Số tiền": "Số tiền 2"})
+
+            df_merge = pd.merge(df1_norm, df2_norm, on="KEY", how="outer")
+            df_merge["Chênh lệch"] = df_merge["Số tiền 1"] - df_merge["Số tiền 2"]
+
+            diff_df = df_merge[df_merge["Chênh lệch"].abs() > 1e-6]
+
+            if diff_df.empty:
+                st.success("✅ Không có sự khác biệt nào ở cột 'Số tiền'")
+            else:
+                st.warning(f"⚠️ Có {len(diff_df)} dòng có chênh lệch!")
+                st.dataframe(diff_df)
+
+                # Tải file
+                excel_output = BytesIO()
+                with pd.ExcelWriter(excel_output, engine="xlsxwriter") as writer:
+                    diff_df.to_excel(writer, index=False, sheet_name="Chênh lệch")
+                excel_output.seek(0)
+                st.download_button("📥 Tải file chênh lệch", data=excel_output, file_name="chenh_lech.xlsx")
+
+        except Exception as e:
+            st.error("❌ Lỗi khi so sánh:")
             st.code(traceback.format_exc(), language="python")
