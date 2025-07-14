@@ -10,7 +10,12 @@ from collections import defaultdict
 
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
-tab1, tab2, tab3 = st.tabs(["🧾 Tạo File Hạch Toán", "🔍 So sánh và Xoá dòng trùng", "📊 File tuỳ chỉnh (Check thủ công)"])
+tabs = st.tabs([
+    "🧾 Tạo File Hạch Toán", 
+    "🔍 So sánh và Xoá dòng trùng", 
+    "📊 File tuỳ chỉnh (Check thủ công)", 
+    "📁 Tab 4 (Thêm chức năng gì đó)"
+])
 
 with tab1:
     uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
