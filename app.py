@@ -226,12 +226,11 @@ with tab1:
             st.error("❌ Đã xảy ra lỗi:")
             st.code(traceback.format_exc(), language="python")
 
-# ======= TAB 2: SO SÁNH XOÁ TRÙNG =======
 with tab2:
-    st.header("🔍 So sánh 2 File Excel và Xoá dòng trùng theo Tên + Ngày + Số Tiền")
+    st.header("🔍 So sánh 2 File Excel và Xoá dòng trùng (Ngày hạch toán + Tên đối tượng + Số tiền)")
 
-    file_base = st.file_uploader("📂 File Gốc (Base)", type=["xlsx"], key="base_file_xlsx")
-    file_compare = st.file_uploader("📄 File So Sánh (Compare)", type=["xlsx"], key="compare_file_xlsx")
+    file_base = st.file_uploader("📂 File Gốc (Base)", type=["xlsx"], key="base_file_excel")
+    file_compare = st.file_uploader("📄 File So Sánh", type=["xlsx"], key="compare_file_excel")
 
     def normalize_name(name):
         try:
@@ -251,76 +250,63 @@ with tab2:
         except:
             return None
 
-    def normalize_columns(columns):
-        return [
-            str(c).strip()
-            .replace('\xa0', ' ')
-            .replace('\n', ' ')
-            .replace('\t', ' ')
-            .replace('\r', ' ')
-            .strip()
-            .title()
-        for c in columns
-    ]
+    def normalize_columns(cols):
+        return [str(c).strip().title() for c in cols]
 
-    if st.button("🚫 Xoá dòng trùng (Excel so với Excel)") and file_base and file_compare:
+    if st.button("🚫 Xoá dòng trùng") and file_base and file_compare:
         try:
             df_base = pd.read_excel(file_base)
-            df_base.columns = normalize_columns(df_base.columns)
-
             df_compare = pd.read_excel(file_compare)
+
+            # Chuẩn hóa tên cột
+            df_base.columns = normalize_columns(df_base.columns)
             df_compare.columns = normalize_columns(df_compare.columns)
 
-            # Kiểm tra cột bắt buộc
-            req_cols = {"Tên Đối Tượng", "Ngày Hạch Toán (*)", "Số Tiền"}
-            if not req_cols.issubset(df_base.columns) or not req_cols.issubset(df_compare.columns):
-                st.error("❌ Một trong hai file thiếu cột yêu cầu: 'Tên Đối Tượng', 'Ngày Hạch Toán (*)', 'Số Tiền'")
+            # Check tồn tại cột cần thiết
+            required_cols = {"Ngày Hạch Toán (*)", "Tên Đối Tượng", "Số Tiền"}
+            if not required_cols.issubset(df_base.columns) or not required_cols.issubset(df_compare.columns):
+                st.error("❌ Một hoặc cả hai file thiếu các cột: 'Ngày hạch toán (*)', 'Tên đối tượng', 'Số tiền'")
                 st.stop()
 
-            # Chuẩn hoá và tạo chỉ mục
+            # Chuẩn hóa 3 cột để so sánh
             for df in [df_base, df_compare]:
-                df["Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
-                df["Ngày chuẩn"] = df["Ngày Hạch Toán (*)"].apply(normalize_date)
-                df["Số Tiền chuẩn"] = df["Số Tiền"].apply(pd.to_numeric, errors="coerce")
+                df["__Ngày chuẩn"] = df["Ngày Hạch Toán (*)"].apply(normalize_date)
+                df["__Tên chuẩn"] = df["Tên Đối Tượng"].apply(normalize_name)
+                df["__Tiền chuẩn"] = df["Số Tiền"].apply(pd.to_numeric, errors="coerce")
 
-            # Tạo set dòng gốc
-            base_keys = set(zip(df_base["Tên chuẩn"], df_base["Ngày chuẩn"], df_base["Số Tiền chuẩn"]))
+            base_keys = set(zip(df_base["__Ngày chuẩn"], df_base["__Tên chuẩn"], df_base["__Tiền chuẩn"]))
 
-            # Đánh dấu dòng trùng
-            df_compare["Trạng Thái"] = df_compare.apply(
-                lambda row: "Trùng" if (row["Tên chuẩn"], row["Ngày chuẩn"], row["Số Tiền chuẩn"]) in base_keys else "Giữ lại",
+            df_compare["__Trạng thái"] = df_compare.apply(
+                lambda row: "Trùng" if (row["__Ngày chuẩn"], row["__Tên chuẩn"], row["__Tiền chuẩn"]) in base_keys else "Giữ lại",
                 axis=1
             )
 
-            # Lưu log
-            matched_rows = df_compare[df_compare["Trạng Thái"] == "Trùng"]
-            st.info(f"🔎 Tổng cộng {len(matched_rows)} dòng trùng bị xoá.")
+            df_matched = df_compare[df_compare["__Trạng thái"] == "Trùng"]
+            df_cleaned = df_compare[df_compare["__Trạng thái"] != "Trùng"].drop(columns=["__Ngày chuẩn", "__Tên chuẩn", "__Tiền chuẩn", "__Trạng thái"])
 
-            # Ghi lại kết quả
-            df_result = df_compare[df_compare["Trạng Thái"] != "Trùng"].drop(columns=["Tên chuẩn", "Ngày chuẩn", "Số Tiền chuẩn", "Trạng Thái"])
-            matched_preview = matched_rows[["Tên Đối Tượng", "Ngày Hạch Toán (*)", "Số Tiền"]]
-
-            # Xuất Excel
+            # Xuất ra file Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                df_result.to_excel(writer, sheet_name="Giữ Lại", index=False)
-                matched_preview.to_excel(writer, sheet_name="Đã Xoá", index=False)
+                df_cleaned.to_excel(writer, sheet_name="Giữ Lại", index=False)
+                df_matched.to_excel(writer, sheet_name="Đã Xoá", index=False)
 
-                for sheet_name in writer.sheets:
-                    ws = writer.sheets[sheet_name]
-                    for i, col in enumerate(df_result.columns):
-                        max_len = max(df_result[col].astype(str).map(len).max(), len(col))
-                        ws.set_column(i, i, max_len + 2)
+                for sheet in writer.sheets:
+                    ws = writer.sheets[sheet]
+                    target_df = df_cleaned if sheet == "Giữ Lại" else df_matched
+                    for i, col in enumerate(target_df.columns):
+                        col_len = max(target_df[col].astype(str).str.len().max(), len(col))
+                        ws.set_column(i, i, col_len + 2)
 
             output.seek(0)
-            st.download_button("📥 Tải Excel đã xoá dòng trùng", data=output, file_name="ket_qua_xoa_trung.xlsx")
+            st.download_button("📥 Tải file Excel kết quả", data=output, file_name="so_sanh_xoa_trung.xlsx")
 
-            # Hiển thị preview
-            st.subheader("📋 Các dòng đã xoá:")
-            st.dataframe(matched_preview)
+            st.success(f"🎉 Đã xoá {len(df_matched)} dòng trùng.")
+            if not df_matched.empty:
+                st.subheader("📋 Các dòng đã xoá")
+                st.dataframe(df_matched[["Ngày Hạch Toán (*)", "Tên Đối Tượng", "Số Tiền"]])
 
         except Exception as e:
-            st.error("❌ Lỗi khi xử lý file:")
+            st.error("❌ Có lỗi xảy ra:")
             st.code(traceback.format_exc(), language="python")
 
 with tab3:
