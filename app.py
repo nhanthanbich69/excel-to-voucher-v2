@@ -8,76 +8,77 @@ import re
 from openpyxl import load_workbook
 from collections import defaultdict
 
+# ====== CẤU HÌNH GIAO DIỆN =======
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
-tab1, tab2, tab3, tab4 = st.tabs(["🧾 Tạo File Hạch Toán", "🔍 So sánh và Xoá dòng trùng", "📊 File tuỳ chỉnh (Check thủ công)", "📐 So sánh Số tiền giữa các file"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🧾 Tạo File Hạch Toán", 
+    "🔍 So sánh và Xoá dòng trùng", 
+    "📊 File tuỳ chỉnh (Check thủ công)", 
+    "📐 So sánh Số tiền giữa các file"
+])
 
-with tab1:
-    uploaded_file = st.file_uploader("📂 Chọn file Excel (.xlsx)", type=["xlsx"])
+# ====== HÀM TIỆN ÍCH CHUNG =======
+def extract_month_year_from_filename(filename):
+    try:
+        match = re.search(r'(\d{4})[\.\-_]?\s*(\d{2})|\s*(\d{2})[\.\-_]?\s*(\d{4})', filename)
+        if match:
+            year = match.group(1) or match.group(4)
+            month = match.group(2) or match.group(3)
+            return month, year
+    except: pass
+    return "Tự đặt tên nhé", "Tự đặt tên nhé"
 
-    def extract_month_year_from_filename(filename):
-        try:
-            match = re.search(r'(\d{4})[\.\-_]?\s*(\d{2})|\s*(\d{2})[\.\-_]?\s*(\d{4})', filename)
-            if match:
-                year = match.group(1) or match.group(4)
-                month = match.group(2) or match.group(3)
-                return month, year
-        except: pass
-        return "Tự đặt tên nhé", "Tự đặt tên nhé"
+def to_ddmmyyyy(date_val):
+    try:
+        if pd.isnull(date_val): return ""
+        if isinstance(date_val, (pd.Timestamp, pd.DatetimeTZDtype)):
+            return date_val.strftime("%d/%m/%Y")
+        if isinstance(date_val, (float, int)):
+            return pd.to_datetime(date_val, origin='1899-12-30', unit='D').strftime("%d/%m/%Y")
+        if isinstance(date_val, str):
+            parsed = pd.to_datetime(date_val, dayfirst=True, errors='coerce')
+            if pd.isnull(parsed): parsed = pd.to_datetime(date_val, errors='coerce')
+            return parsed.strftime("%d/%m/%Y") if not pd.isnull(parsed) else ""
+        return str(date_val)
+    except: return ""
 
-    def to_ddmmyyyy(date_val):
-        try:
-            if pd.isnull(date_val): return ""
-            if isinstance(date_val, (pd.Timestamp, pd.DatetimeTZDtype)): return date_val.strftime("%d/%m/%Y")
-            if isinstance(date_val, (float, int)): return pd.to_datetime(date_val, origin='1899-12-30', unit='D').strftime("%d/%m/%Y")
-            if isinstance(date_val, str):
-                parsed = pd.to_datetime(date_val, dayfirst=True, errors='coerce')
-                if pd.isnull(parsed): parsed = pd.to_datetime(date_val, errors='coerce')
-                return parsed.strftime("%d/%m/%Y") if not pd.isnull(parsed) else ""
-            return str(date_val)
-        except: return ""
+def format_name(name):
+    clean = re.split(r'[\n\r\t\u00A0\u2003]+', str(name).strip())[0]
+    clean = re.sub(r'\s+', ' ', clean)
+    return clean.replace("-", "").title()
 
-    if uploaded_file:
-        file_name = uploaded_file.name
-        thang, nam = extract_month_year_from_filename(file_name)
-        if thang != "Tự đặt tên nhé":
-            st.success(f"Đã lấy tháng: {thang}, năm: {nam} từ tên file: {file_name}")
-        else:
-            st.warning("❗ Không xác định được tháng và năm từ tên file.")
-    else:
-        thang, nam = "Tự đặt tên nhé", "Tự đặt tên nhé"
+def classify_department(value, content_value=None):
+    val = str(value).upper()
+    if "VACCINE" in val or "VACXIN" in val: return "VACCINE"
+    elif "THUỐC" in val: return "THUOC"
+    elif "THẺ" in val: return "THE"
+    if content_value:
+        content_val = str(content_value).upper()
+        if "VACCINE" in content_val: return "VACCINE"
+        elif "THUỐC" in content_val: return "THUOC"
+    return "KCB"
 
-    chu_hau_to = st.text_input("✍️ Hậu tố chứng từ (VD: A, B1, NV123)").strip().upper()
-    prefix = f"T{thang}_{nam}" if thang != "Tự đặt tên nhé" and nam != "Tự đặt tên nhé" else "TBD"
+category_info = {
+    "KCB": {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
+    "THUOC": {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
+    "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Tiêm vacxin"},
+}
 
-    def classify_department(value, content_value=None):
-        val = str(value).upper()
-        if "VACCINE" in val or "VACXIN" in val: return "VACCINE"
-        elif "THUỐC" in val: return "THUOC"
-        elif "THẺ" in val: return "THE"
-        if content_value:
-            content_val = str(content_value).upper()
-            if "VACCINE" in content_val: return "VACCINE"
-            elif "THUỐC" in content_val: return "THUOC"
-        return "KCB"
+output_columns = [
+    "Ngày hạch toán (*)", "Ngày chứng từ (*)", "Số chứng từ (*)",
+    "Mã đối tượng", "Tên đối tượng", "Nộp vào TK", "Mở tại ngân hàng",
+    "Lý do thu", "Diễn giải lý do thu", "Diễn giải (hạch toán)",
+    "TK Nợ (*)", "TK Có (*)", "Số tiền"
+]
 
-    category_info = {
-        "KCB": {"ma": "KHACHLE01", "ten": "Khách hàng lẻ - Khám chữa bệnh"},
-        "THUOC": {"ma": "KHACHLE02", "ten": "Khách hàng lẻ - Bán thuốc"},
-        "VACCINE": {"ma": "KHACHLE03", "ten": "Khách hàng lẻ - Tiêm vacxin"},
-    }
-
-    output_columns = [
-        "Ngày hạch toán (*)", "Ngày chứng từ (*)", "Số chứng từ (*)",
-        "Mã đối tượng", "Tên đối tượng", "Nộp vào TK", "Mở tại ngân hàng",
-        "Lý do thu", "Diễn giải lý do thu", "Diễn giải (hạch toán)",
-        "TK Nợ (*)", "TK Có (*)", "Số tiền"
-    ]
-
-    def format_name(name):
-        clean = re.split(r'[\n\r\t\u00A0\u2003]+', str(name).strip())[0]
-        clean = re.sub(r'\s+', ' ', clean)
-        return clean.replace("-", "").title()
+# ====== XỬ LÝ 1 FILE =======
+def process_single_file(uploaded_file, chu_hau_to, prefix):
+    logs = []
+    data_by_category = {cat: {} for cat in category_info}
+    file_name = uploaded_file.name
+    thang, nam = extract_month_year_from_filename(file_name)
+    has_pos = int(nam) <= 2022 if nam.isdigit() else True
 
     def gen_so_chung_tu(date_str, category):
         try:
@@ -86,134 +87,141 @@ with tab1:
         except:
             return f"NVK_INVALID_{chu_hau_to}"
 
-    if st.button("🚀 Tạo File Zip") and uploaded_file and chu_hau_to:
+    xls = pd.ExcelFile(uploaded_file)
+    for sheet_name in xls.sheet_names:
+        if not sheet_name.replace(".", "", 1).isdigit() and not sheet_name.replace(",", "", 1).isdigit():
+            logs.append(f"⏩ Bỏ qua sheet: {sheet_name}")
+            continue
+        df = xls.parse(sheet_name)
+        df.columns = [str(col).strip().upper() for col in df.columns]
+        if "KHOA/BỘ PHẬN" not in df.columns or "TRẢ THẺ" not in df.columns:
+            logs.append(f"⚠️ Thiếu cột ở sheet {sheet_name}")
+            continue
+        date_column = 'NGÀY QUỸ' if 'NGÀY QUỸ' in df.columns else 'NGÀY KHÁM'
+        if date_column not in df.columns:
+            logs.append(f"⚠️ Không có cột ngày: {date_column}")
+            continue
+
+        df["TRẢ THẺ"] = pd.to_numeric(df["TRẢ THẺ"], errors="coerce")
+        df = df[df["TRẢ THẺ"].notna() & (df["TRẢ THẺ"] != 0)]
+        df = df[df[date_column].notna() & (df[date_column] != "-")]
+        df = df[df["HỌ VÀ TÊN"].notna() & (df["HỌ VÀ TÊN"] != "-")]
+
+        df["CATEGORY"] = df.apply(lambda row: classify_department(row["KHOA/BỘ PHẬN"], row.get("NỘI DUNG THU")), axis=1)
+
+        for category in data_by_category:
+            cat_df = df[df["CATEGORY"] == category]
+            if cat_df.empty: continue
+            for mode in ["PT", "PC"]:
+                is_pt = mode == "PT"
+                df_mode = cat_df[cat_df["TRẢ THẺ"] > 0] if is_pt else cat_df[cat_df["TRẢ THẺ"] < 0]
+                if df_mode.empty: continue
+                out_df = pd.DataFrame()
+                out_df["Ngày hạch toán (*)"] = df_mode[date_column].apply(to_ddmmyyyy)
+                out_df["Ngày chứng từ (*)"] = out_df["Ngày hạch toán (*)"]
+                out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
+                out_df["Mã đối tượng"] = category_info[category]["ma"]
+                out_df["Tên đối tượng"] = df_mode["HỌ VÀ TÊN"].apply(format_name)
+                out_df["Nộp vào TK"] = "1290153594"
+                out_df["Mở tại ngân hàng"] = "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam - Hoàng Mai"
+                out_df["Lý do thu"] = ""
+                ten_dv = category_info[category]['ten'].split('-')[-1].strip().lower()
+                pos_phrase = " qua pos" if has_pos else ""
+                out_df["Diễn giải lý do thu"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {ten_dv}{pos_phrase} ngày " + out_df["Ngày chứng từ (*)"]
+                out_df["TK Nợ (*)"] = "1368" if has_pos else "1121"
+                out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + " " + df_mode["HỌ VÀ TÊN"].apply(format_name)
+                out_df["TK Có (*)"] = "131"
+                out_df["Số tiền"] = df_mode["TRẢ THẺ"].abs().apply(lambda x: f"=VALUE({x})")
+                out_df = out_df[output_columns]
+                data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
+                logs.append(f"✅ {sheet_name} ({category}) [{mode}]: {len(out_df)} dòng")
+
+    pt_pc_by_category = {cat: {"PT": defaultdict(list), "PC": defaultdict(list)} for cat in category_info}
+    for category, days in data_by_category.items():
+        for day, data in days.items():
+            for mode in ["PT", "PC"]:
+                if mode in data and not data[mode].empty:
+                    pt_pc_by_category[category][mode][day].append(data[mode])
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+        for category in pt_pc_by_category:
+            for mode in ["PT", "PC"]:
+                day_dict = pt_pc_by_category[category][mode]
+                if not day_dict: continue
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                    for day, dfs in sorted(day_dict.items()):
+                        merged_df = pd.concat(dfs).reset_index(drop=True)
+                        if merged_df.empty: continue
+                        merged_df.to_excel(writer, sheet_name=day.strip(), index=False)
+                        workbook = writer.book
+                        worksheet = writer.sheets[day.strip()]
+                        header_format = workbook.add_format({'bold': True, 'bg_color': '#D9E1F2', 'border': 1})
+                        for col_num, col_name in enumerate(merged_df.columns):
+                            worksheet.write(0, col_num, col_name, header_format)
+                        for i, col in enumerate(merged_df.columns):
+                            max_width = max([len(str(col))] + [len(str(v)) for v in merged_df[col].values])
+                            worksheet.set_column(i, i, max_width + 2)
+                        worksheet.set_tab_color('#92D050')
+                output.seek(0)
+                file_path = f"{prefix}_{category}/{mode}.xlsx"
+                zip_file.writestr(file_path, output.read())
+
+    cleaned_zip = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "r") as zin, zipfile.ZipFile(cleaned_zip, "w") as zout:
+        for item in zin.infolist():
+            if item.filename.endswith(".xlsx"):
+                with zin.open(item.filename) as f:
+                    wb = load_workbook(f, data_only=False)
+                    for sheet in wb.worksheets:
+                        headers = [cell.value for cell in sheet[1]]
+                        if "Số tiền" in headers:
+                            col_idx = headers.index("Số tiền") + 1
+                            for row in sheet.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
+                                cell = row[0]
+                                if cell.data_type == "f" and isinstance(cell.value, str):
+                                    match = re.search(r"=VALUE\(([\d.]+)\)", cell.value)
+                                    if match:
+                                        cell.value = float(match.group(1))
+                                        cell.data_type = 'n'
+                    temp_output = BytesIO()
+                    wb.save(temp_output)
+                    temp_output.seek(0)
+                    zout.writestr(item.filename, temp_output.read())
+            else:
+                zout.writestr(item, zin.read(item.filename))
+
+    return cleaned_zip, logs
+
+
+# ====== GIAO DIỆN TAB 1 =======
+with tab1:
+    uploaded_files = st.file_uploader("📂 Chọn nhiều file Excel (.xlsx)", type=["xlsx"], accept_multiple_files=True)
+    chu_hau_to = st.text_input("✍️ Hậu tố chứng từ (VD: A, B1, NV123)").strip().upper()
+
+    if st.button("🚀 Tạo File Zip Tổng Hợp") and uploaded_files and chu_hau_to:
         try:
-            xls = pd.ExcelFile(uploaded_file)
-            st.success(f"📥 Đã đọc file {uploaded_file.name} với {len(xls.sheet_names)} sheet.")
-            data_by_category = {cat: {} for cat in category_info}
-            logs = []
+            zip_master = BytesIO()
+            logs_all = []
+            with zipfile.ZipFile(zip_master, "w") as zip_all:
+                for uploaded_file in uploaded_files:
+                    file_name = uploaded_file.name
+                    thang, nam = extract_month_year_from_filename(file_name)
+                    prefix = f"T{thang}_{nam}" if thang != "Tự đặt tên nhé" and nam != "Tự đặt tên nhé" else "TBD"
+                    zip_sub, logs = process_single_file(uploaded_file, chu_hau_to, prefix)
+                    folder_name = f"{os.path.splitext(file_name)[0]}_{prefix}"
+                    with zipfile.ZipFile(zip_sub, "r") as zsub:
+                        for item in zsub.infolist():
+                            content = zsub.read(item.filename)
+                            zip_all.writestr(f"{folder_name}/{item.filename}", content)
+                    logs_all.append(f"📄 {file_name}:")
+                    logs_all.extend([f"  - {line}" for line in logs])
 
-            has_pos = int(nam) <= 2022 if nam.isdigit() else True
-
-            for sheet_name in xls.sheet_names:
-                if not sheet_name.replace(".", "", 1).isdigit() and not sheet_name.replace(",", "", 1).isdigit():
-                    logs.append(f"⏩ Bỏ qua sheet: {sheet_name}")
-                    continue
-
-                df = xls.parse(sheet_name)
-                df.columns = [str(col).strip().upper() for col in df.columns]
-
-                if "KHOA/BỘ PHẬN" not in df.columns or "TRẢ THẺ" not in df.columns:
-                    logs.append(f"⚠️ Thiếu cột ở sheet {sheet_name}")
-                    continue
-
-                date_column = 'NGÀY QUỸ' if 'NGÀY QUỸ' in df.columns else 'NGÀY KHÁM'
-                if date_column not in df.columns:
-                    logs.append(f"⚠️ Không có cột ngày: {date_column}")
-                    continue
-
-                df["TRẢ THẺ"] = pd.to_numeric(df["TRẢ THẺ"], errors="coerce")
-                df = df[df["TRẢ THẺ"].notna() & (df["TRẢ THẺ"] != 0)]
-                df = df[df[date_column].notna() & (df[date_column] != "-")]
-                df = df[df["HỌ VÀ TÊN"].notna() & (df["HỌ VÀ TÊN"] != "-")]
-
-                df["CATEGORY"] = df.apply(lambda row: classify_department(row["KHOA/BỘ PHẬN"], row.get("NỘI DUNG THU")), axis=1)
-
-                for category in data_by_category:
-                    cat_df = df[df["CATEGORY"] == category]
-                    if cat_df.empty:
-                        continue
-
-                    for mode in ["PT", "PC"]:
-                        is_pt = mode == "PT"
-                        df_mode = cat_df[cat_df["TRẢ THẺ"] > 0] if is_pt else cat_df[cat_df["TRẢ THẺ"] < 0]
-                        if df_mode.empty:
-                            continue
-
-                        out_df = pd.DataFrame()
-                        out_df["Ngày hạch toán (*)"] = df_mode[date_column].apply(to_ddmmyyyy)
-                        out_df["Ngày chứng từ (*)"] = out_df["Ngày hạch toán (*)"]
-                        out_df["Số chứng từ (*)"] = out_df["Ngày chứng từ (*)"].apply(lambda x: gen_so_chung_tu(x, category))
-                        out_df["Mã đối tượng"] = category_info[category]["ma"]
-                        out_df["Tên đối tượng"] = df_mode["HỌ VÀ TÊN"].apply(format_name)
-                        out_df["Nộp vào TK"] = "1290153594"
-                        out_df["Mở tại ngân hàng"] = "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam - Hoàng Mai"
-                        out_df["Lý do thu"] = ""
-                        ten_dv = category_info[category]['ten'].split('-')[-1].strip().lower()
-                        pos_phrase = " qua pos" if has_pos else ""
-                        out_df["Diễn giải lý do thu"] = ("Thu tiền" if is_pt else "Chi tiền") + f" {ten_dv}{pos_phrase} ngày " + out_df["Ngày chứng từ (*)"]
-                        out_df["TK Nợ (*)"] = "1368" if has_pos else "1121"
-                        out_df["Diễn giải (hạch toán)"] = out_df["Diễn giải lý do thu"] + " " + df_mode["HỌ VÀ TÊN"].apply(format_name)
-                        out_df["TK Có (*)"] = "131"
-                        out_df["Số tiền"] = df_mode["TRẢ THẺ"].abs().apply(lambda x: f"=VALUE({x})")
-                        out_df = out_df[output_columns]
-                        data_by_category[category].setdefault(sheet_name, {})[mode] = out_df
-                        logs.append(f"✅ {sheet_name} ({category}) [{mode}]: {len(out_df)} dòng")
-
-            pt_pc_by_category = {cat: {"PT": defaultdict(list), "PC": defaultdict(list)} for cat in category_info}
-            for category, days in data_by_category.items():
-                for day, data in days.items():
-                    for mode in ["PT", "PC"]:
-                        if mode in data and not data[mode].empty:
-                            pt_pc_by_category[category][mode][day].append(data[mode])
-
-            zip_buffer = BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-                for category in pt_pc_by_category:
-                    for mode in ["PT", "PC"]:
-                        day_dict = pt_pc_by_category[category][mode]
-                        if not day_dict: continue
-                        output = BytesIO()
-                        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                            for day, dfs in sorted(day_dict.items()):
-                                merged_df = pd.concat(dfs).reset_index(drop=True)
-                                if merged_df.empty: continue
-                                merged_df.to_excel(writer, sheet_name=day.strip(), index=False)
-
-                                workbook = writer.book
-                                worksheet = writer.sheets[day.strip()]
-                                header_format = workbook.add_format({
-                                    'bold': True, 'bg_color': '#D9E1F2', 'border': 1
-                                })
-                                for col_num, col_name in enumerate(merged_df.columns):
-                                    worksheet.write(0, col_num, col_name, header_format)
-                                for i, col in enumerate(merged_df.columns):
-                                    max_width = max([len(str(col))] + [len(str(v)) for v in merged_df[col].values])
-                                    worksheet.set_column(i, i, max_width + 2)
-                                worksheet.set_tab_color('#92D050')
-                        output.seek(0)
-                        file_path = f"{prefix}_{category}/{mode}.xlsx"
-                        zip_file.writestr(file_path, output.read())
-
-            cleaned_zip = BytesIO()
-            with zipfile.ZipFile(zip_buffer, "r") as zin, zipfile.ZipFile(cleaned_zip, "w") as zout:
-                for item in zin.infolist():
-                    if item.filename.endswith(".xlsx"):
-                        with zin.open(item.filename) as f:
-                            wb = load_workbook(f, data_only=False)
-                            for sheet in wb.worksheets:
-                                headers = [cell.value for cell in sheet[1]]
-                                if "Số tiền" in headers:
-                                    col_idx = headers.index("Số tiền") + 1
-                                    for row in sheet.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
-                                        cell = row[0]
-                                        if cell.data_type == "f" and isinstance(cell.value, str):
-                                            match = re.search(r"=VALUE\(([\d.]+)\)", cell.value)
-                                            if match:
-                                                cell.value = float(match.group(1))
-                                                cell.data_type = 'n'
-                            temp_output = BytesIO()
-                            wb.save(temp_output)
-                            temp_output.seek(0)
-                            zout.writestr(item.filename, temp_output.read())
-                    else:
-                        zout.writestr(item, zin.read(item.filename))
-
-            st.success("🎉 Đã xử lý xong!")
-            st.download_button("📦 Tải File Zip Hoàn Chỉnh", data=cleaned_zip.getvalue(), file_name=f"{prefix}.zip")
-            st.markdown("### 📄 Nhật ký xử lý")
-            st.markdown("\n".join([f"- {line}" for line in logs]))
-
+            st.success("🎉 Tạo file zip tổng hợp thành công!")
+            st.download_button("📦 Tải File Zip Tổng", data=zip_master.getvalue(), file_name=f"TongHop_{chu_hau_to}.zip")
+            st.markdown("### 📑 Nhật ký xử lý toàn bộ:")
+            st.text("\n".join(logs_all))
         except Exception as e:
             st.error("❌ Đã xảy ra lỗi:")
             st.code(traceback.format_exc(), language="python")
