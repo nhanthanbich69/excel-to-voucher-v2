@@ -513,49 +513,84 @@ with tab3:
             st.code(traceback.format_exc(), language="python")
 
 with tab4:
-    st.subheader("📦 Tải file Zip đã xử lý để so sánh 'Số tiền'")
-    uploaded_zip = st.file_uploader("🔍 Chọn file ZIP đầu ra", type=["zip"], key="zip_compare_sotien")
+    st.subheader("📑 So sánh 'Số tiền' giữa nhiều file Excel")
 
-    if uploaded_zip:
+    uploaded_excels = st.file_uploader(
+        "📂 Chọn nhiều file Excel để so sánh", 
+        type=["xlsx"], 
+        accept_multiple_files=True, 
+        key="multi_excel_compare"
+    )
+
+    if uploaded_excels:
         try:
-            zip_bytes = BytesIO(uploaded_zip.read())
-            zip_file = zipfile.ZipFile(zip_bytes)
             all_records = []
 
-            for file in zip_file.namelist():
-                if file.endswith(".xlsx"):
-                    with zip_file.open(file) as f:
-                        xl = pd.ExcelFile(f)
-                        for sheet in xl.sheet_names:
-                            df = xl.parse(sheet)
-                            df.columns = [str(c).strip() for c in df.columns]
-                            if not {"Số tiền", "Họ và tên", "Số chứng từ (*)", "Ngày chứng từ (*)"}.issubset(set(df.columns)):
-                                continue
-                            df["TÊN FILE"] = file
-                            df["TÊN SHEET"] = sheet
-                            df["KEY"] = df["Họ và tên"].astype(str).str.strip() + "_" + df["Số chứng từ (*)"].astype(str)
-                            df["SỐ TIỀN GỐC"] = df["Số tiền"].astype(str).str.replace("=VALUE(", "", regex=False).str.replace(")", "", regex=False).astype(float)
-                            all_records.append(df[["KEY", "SỐ TIỀN GỐC", "TÊN FILE", "TÊN SHEET"]])
+            for file in uploaded_excels:
+                xl = pd.ExcelFile(file)
+                for sheet in xl.sheet_names:
+                    df = xl.parse(sheet)
+                    df.columns = [str(c).strip() for c in df.columns]
+
+                    cols_lower = [c.lower() for c in df.columns]
+                    required = {"số tiền", "số chứng từ (*)", "ngày chứng từ (*)"}
+                    if not required.issubset(set(cols_lower)):
+                        continue
+
+                    ten_col = next((c for c in df.columns if c.strip().lower() in ["họ và tên", "tên đối tượng"]), None)
+                    if not ten_col: continue
+
+                    df["TÊN FILE"] = file.name
+                    df["TÊN SHEET"] = sheet
+                    df["KEY"] = df[ten_col].astype(str).str.strip() + "_" + df["Số chứng từ (*)"].astype(str)
+
+                    df["SỐ TIỀN GỐC"] = (
+                        df["Số tiền"]
+                        .astype(str)
+                        .str.replace("=VALUE(", "", regex=False)
+                        .str.replace(")", "", regex=False)
+                        .astype(float)
+                    )
+
+                    all_records.append(df[["KEY", "SỐ TIỀN GỐC", "TÊN FILE", "TÊN SHEET"]])
 
             if not all_records:
-                st.warning("Không tìm thấy dữ liệu phù hợp để so sánh.")
+                st.warning("⚠️ Không tìm thấy dữ liệu phù hợp để so sánh.")
             else:
                 full_df = pd.concat(all_records)
-                pivot_df = full_df.pivot_table(index="KEY", columns="TÊN FILE", values="SỐ TIỀN GỐC", aggfunc="first").reset_index()
+                pivot_df = full_df.pivot_table(
+                    index="KEY", 
+                    columns="TÊN FILE", 
+                    values="SỐ TIỀN GỐC", 
+                    aggfunc="first"
+                ).reset_index()
 
-                # Tìm dòng có sự khác biệt
-                diff_df = pivot_df.drop("KEY", axis=1).apply(lambda row: len(set(row.dropna())) > 1, axis=1)
-                result_df = pivot_df[diff_df]
+                # So sánh: những dòng có sự khác biệt giữa các file
+                diff_mask = pivot_df.drop("KEY", axis=1).apply(
+                    lambda row: len(set(row.dropna())) > 1, axis=1
+                )
+                result_df = pivot_df[diff_mask]
 
-                st.markdown("### 📊 Các dòng có 'Số tiền' khác nhau giữa các file:")
+                st.markdown(f"""
+                ### 📊 Kết quả so sánh 'Số tiền'
+                - Tổng dòng dữ liệu: `{len(pivot_df)}`
+                - Số dòng khác biệt: `{len(result_df)}`
+                """)
+
                 st.dataframe(result_df, use_container_width=True)
 
-                download = st.download_button(
+                excel_bytes = BytesIO()
+                with pd.ExcelWriter(excel_bytes, engine="xlsxwriter") as writer:
+                    result_df.to_excel(writer, index=False)
+                excel_bytes.seek(0)
+
+                st.download_button(
                     "⬇️ Tải kết quả so sánh (Excel)",
-                    data=result_df.to_excel(index=False, engine="xlsxwriter"),
-                    file_name="So_sanh_So_tien.xlsx"
+                    data=excel_bytes.getvalue(),
+                    file_name="So_sanh_So_tien.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
         except Exception as e:
-            st.error("❌ Đã xảy ra lỗi khi xử lý file ZIP:")
+            st.error("❌ Đã xảy ra lỗi khi xử lý các file Excel:")
             st.code(traceback.format_exc(), language="python")
