@@ -11,11 +11,12 @@ from collections import defaultdict
 # ====== CẤU HÌNH GIAO DIỆN =======
 st.set_page_config(page_title="Tạo File Hạch Toán", layout="wide")
 st.title("📋 Tạo File Hạch Toán Chuẩn từ Excel")
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🧾 Tạo File Hạch Toán", 
     "🔍 So sánh và Xoá dòng trùng", 
     "📊 File tuỳ chỉnh (Check thủ công)", 
-    "📐 So sánh Số tiền giữa các file"
+    "📐 So sánh Số tiền giữa các file",
+    "💸 Chuẩn hoá Phát sinh Nợ/Có"
 ])
 
 # ====== HÀM TIỆN ÍCH CHUNG =======
@@ -533,3 +534,42 @@ with tab4:
         except Exception as e:
             st.error("❌ Đã xảy ra lỗi khi xử lý các file Excel:")
             st.code(traceback.format_exc(), language="python")
+
+# ====== TAB 5: CHUẨN HOÁ PHÁT SINH NỢ/CÓ ======
+with tab5:
+    st.subheader("📥 Nhập hoặc dán bảng dữ liệu có cột 'Phát sinh Nợ' và 'Phát sinh Có'")
+    input_text = st.text_area("📋 Dán dữ liệu dạng bảng từ Excel vào đây (phải có tiêu đề cột)", height=300)
+
+    if input_text:
+        try:
+            # Đọc dữ liệu dạng bảng từ clipboard text
+            from io import StringIO
+            df = pd.read_csv(StringIO(input_text), sep="\t")
+            st.write("✅ Dữ liệu đã đọc thành công:", df.head())
+
+            # Kiểm tra và xử lý "Phát sinh Nợ" / "Phát sinh Có"
+            def convert_amount(val):
+                if pd.isna(val) or val == '':
+                    return 0.0
+                try:
+                    val = str(val).replace(".", "").replace(",", ".").strip()
+                    return round(float(val), 2)
+                except:
+                    return 0.0
+
+            if 'Phát sinh Nợ' in df.columns:
+                df['Phát sinh Nợ'] = df['Phát sinh Nợ'].apply(convert_amount)
+            if 'Phát sinh Có' in df.columns:
+                df['Phát sinh Có'] = df['Phát sinh Có'].apply(convert_amount)
+
+            st.success("🎯 Đã chuẩn hoá giá trị số tiền.")
+            st.dataframe(df)
+
+            # Cho phép tải file đã chuẩn hoá
+            output = BytesIO()
+            df.to_excel(output, index=False)
+            st.download_button("⬇️ Tải file Excel đã chuẩn hoá", data=output.getvalue(), file_name="phat_sinh_chuan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        except Exception as e:
+            st.error("⚠️ Lỗi khi đọc dữ liệu! Kiểm tra định dạng dán vào.")
+            st.exception(e)
