@@ -535,41 +535,74 @@ with tab4:
             st.error("❌ Đã xảy ra lỗi khi xử lý các file Excel:")
             st.code(traceback.format_exc(), language="python")
 
-# ====== TAB 5: CHUẨN HOÁ PHÁT SINH NỢ/CÓ ======
 with tab5:
-    st.subheader("📥 Nhập hoặc dán bảng dữ liệu có cột 'Phát sinh Nợ' và 'Phát sinh Có'")
-    input_text = st.text_area("📋 Dán dữ liệu dạng bảng từ Excel vào đây (phải có tiêu đề cột)", height=300)
+    st.subheader("📌 So khớp công nợ giữa MISA và Excel Thu thực tế")
 
-    if input_text:
+    col1, col2 = st.columns(2)
+    with col1:
+        misa_input = st.text_area("📥 Dán bảng từ MISA", height=300, help="Copy toàn bộ bảng công nợ từ phần mềm MISA (bao gồm cả cột Phát sinh, Số dư, Nợ/Có...)")
+    with col2:
+        excel_input = st.text_area("📥 Dán bảng từ Excel", height=300, help="Copy bảng Excel thu tiền (bao gồm Họ tên, Mã Y tế, Số tiền, Tiền mặt, Trả thẻ...)")
+
+    if misa_input and excel_input:
         try:
-            # Đọc dữ liệu dạng bảng từ clipboard text
-            from io import StringIO
-            df = pd.read_csv(StringIO(input_text), sep="\t")
-            st.write("✅ Dữ liệu đã đọc thành công:", df.head())
+            def parse_misa(text):
+                lines = [line.strip() for line in text.splitlines() if line.strip()]
+                records = []
+                current_ma = ""
+                for line in lines:
+                    # Dòng chứa mã y tế
+                    if re.match(r'^[A-Z0-9]{6,}', line):
+                        current_ma = line.strip()
+                    elif re.match(r'^\d{2}/\d{2}/\d{4}', line):
+                        parts = line.split("\t")
+                        if len(parts) >= 10:
+                            so_phat_sinh = parts[10].replace('.', '').replace(',', '.').strip()
+                            try:
+                                ps = float(so_phat_sinh)
+                                records.append({
+                                    'Mã Y Tế': current_ma,
+                                    'Phát sinh': ps
+                                })
+                            except:
+                                pass
+                return pd.DataFrame(records)
 
-            # Kiểm tra và xử lý "Phát sinh Nợ" / "Phát sinh Có"
-            def convert_amount(val):
-                if pd.isna(val) or val == '':
-                    return 0.0
-                try:
-                    val = str(val).replace(".", "").replace(",", ".").strip()
-                    return round(float(val), 2)
-                except:
-                    return 0.0
+            def parse_excel(text):
+                lines = [line.strip() for line in text.splitlines() if line.strip()]
+                records = []
+                for line in lines:
+                    parts = line.split("\t")
+                    if len(parts) >= 6:
+                        try:
+                            ho_ten = parts[4].strip().upper()
+                            ma_y_te = parts[5].strip().replace('.', '')
+                            so_tien = parts[6].replace(',', '').strip()
+                            thu_thuc_te = float(so_tien)
+                            records.append({
+                                'Mã Y Tế': ma_y_te,
+                                'Họ tên': ho_ten,
+                                'Đã thu': thu_thuc_te
+                            })
+                        except:
+                            continue
+                return pd.DataFrame(records)
 
-            if 'Phát sinh Nợ' in df.columns:
-                df['Phát sinh Nợ'] = df['Phát sinh Nợ'].apply(convert_amount)
-            if 'Phát sinh Có' in df.columns:
-                df['Phát sinh Có'] = df['Phát sinh Có'].apply(convert_amount)
+            df_misa = parse_misa(misa_input)
+            df_excel = parse_excel(excel_input)
 
-            st.success("🎯 Đã chuẩn hoá giá trị số tiền.")
+            df = pd.merge(df_misa, df_excel, on="Mã Y Tế", how="outer")
+            df["Phát sinh"] = df["Phát sinh"].fillna(0)
+            df["Đã thu"] = df["Đã thu"].fillna(0)
+            df["Chênh lệch"] = df["Đã thu"] - df["Phát sinh"]
+
+            st.success("✅ Đã so khớp xong.")
             st.dataframe(df)
 
-            # Cho phép tải file đã chuẩn hoá
             output = BytesIO()
             df.to_excel(output, index=False)
-            st.download_button("⬇️ Tải file Excel đã chuẩn hoá", data=output.getvalue(), file_name="phat_sinh_chuan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button("⬇️ Tải kết quả so khớp", data=output.getvalue(), file_name="so_khop_cong_no.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
         except Exception as e:
-            st.error("⚠️ Lỗi khi đọc dữ liệu! Kiểm tra định dạng dán vào.")
+            st.error("❌ Lỗi xử lý dữ liệu:")
             st.exception(e)
